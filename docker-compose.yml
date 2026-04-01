@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crops_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-crops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crops_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-crops_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crops}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: crops_backend
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-crops}:${POSTGRES_PASSWORD:-crops_pass}@postgres:5432/${POSTGRES_DB:-crops_db}
+      WFP_CLIENT_ID: ${WFP_CLIENT_ID:-}
+      WFP_CLIENT_SECRET: ${WFP_CLIENT_SECRET:-}
+      WFP_API_BASE_URL: https://api.wfp.org/vam-data-bridges/7.0.0
+      WFP_TOKEN_URL: https://api.wfp.org/token
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: crops_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crops}:${POSTGRES_PASSWORD:-crops_pass}@postgres:5432/${POSTGRES_DB:-crops_db}
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+volumes:
+  postgres_data:

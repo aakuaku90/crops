@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+
+# Node
+node_modules/
+.next/
+.env.local
+.env.*.local
+dist/
+build/
+
+# Docker
+.docker/
+
+# Database
+*.sql.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Drizzle
+drizzle/meta/

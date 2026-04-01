@@ -1,0 +1,13 @@
+{
+  "name": "crops",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "install:frontend": "npm install --prefix frontend",
+    "db:push": "npm run db:push --prefix frontend",
+    "db:studio": "npm run db:studio --prefix frontend",
+    "db:generate": "npm run db:generate --prefix frontend"
+  }
+}
