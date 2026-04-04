@@ -589,6 +589,262 @@ async def sync_fao_supply_utilization() -> dict:
     return {"records_inserted": inserted, "message": f"Synced {inserted} FAO Supply Utilization records from FAOSTAT"}
 
 
+# ── OA: Annual Population ────────────────────────────────────────────────────
+
+def _fetch_population_sync() -> list[dict]:
+    _configure_faostat()
+    data = faostat.get_data(
+        "OA",
+        pars={"area": GHANA_AREA_CODE},
+        null_values=False,
+    )
+    rows = list(data)
+    if not rows:
+        return []
+    header = rows[0]
+    return [dict(zip(header, r)) for r in rows[1:]]
+
+
+async def sync_fao_population() -> dict:
+    """Fetch FAO Annual Population data for Ghana."""
+    try:
+        rows = await asyncio.to_thread(_fetch_population_sync)
+    except Exception as e:
+        return {"records_inserted": 0, "message": f"FAOSTAT error: {e}"}
+
+    if not rows:
+        return {"records_inserted": 0, "message": "No population data returned"}
+
+    pool = await get_pool()
+    inserted = 0
+
+    async with pool.acquire() as conn:
+        for row in rows:
+            try:
+                year_raw = row.get("Year")
+                item = str(row.get("Item", "")).strip()
+                item_code = str(row.get("Item Code", "")).strip() or None
+                element = str(row.get("Element", "")).strip() or None
+                element_code = str(row.get("Element Code", row.get("ElementCode", ""))).strip() or None
+                unit = str(row.get("Unit", "")).strip() or None
+                value_raw = row.get("Value")
+
+                if year_raw is None or not item or value_raw is None:
+                    continue
+
+                year = int(year_raw)
+                value = float(value_raw)
+
+                await conn.execute(
+                    """
+                    INSERT INTO fao_population
+                        (year, item, item_code, element, element_code, unit, value)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (element_code, year) DO UPDATE
+                        SET item    = EXCLUDED.item,
+                            element = EXCLUDED.element,
+                            unit    = EXCLUDED.unit,
+                            value   = EXCLUDED.value
+                    """,
+                    year, item, item_code, element, element_code, unit, value,
+                )
+                inserted += 1
+            except Exception as e:
+                print(f"FAO OA insert error: {e} | row: {row}")
+                continue
+
+    return {"records_inserted": inserted, "message": f"Synced {inserted} FAO Population records from FAOSTAT"}
+
+
+# ── TCL: Crops & Livestock Trade ─────────────────────────────────────────────
+
+def _fetch_trade_sync() -> list[dict]:
+    _configure_faostat()
+    data = faostat.get_data(
+        "TCL",
+        pars={"area": GHANA_AREA_CODE},
+        null_values=False,
+    )
+    rows = list(data)
+    if not rows:
+        return []
+    header = rows[0]
+    return [dict(zip(header, r)) for r in rows[1:]]
+
+
+async def sync_fao_fertilizer() -> dict:
+    """Fetch FAO Fertilizer Use (RI domain) data for Ghana."""
+    try:
+        rows = await asyncio.to_thread(_fetch_fertilizer_sync)
+    except Exception as e:
+        return {"records_inserted": 0, "message": f"FAOSTAT error: {e}"}
+
+    if not rows:
+        return {"records_inserted": 0, "message": "No Fertilizer data returned"}
+
+    pool = await get_pool()
+    inserted = 0
+
+    async with pool.acquire() as conn:
+        for row in rows:
+            try:
+                year_raw = row.get("Year")
+                item = str(row.get("Item", "")).strip()
+                item_code = str(row.get("Item Code", "")).strip() or None
+                element = str(row.get("Element", "")).strip() or None
+                element_code = str(row.get("Element Code", row.get("ElementCode", ""))).strip() or None
+                unit = str(row.get("Unit", "")).strip() or None
+                value_raw = row.get("Value")
+
+                if year_raw is None or not item or value_raw is None:
+                    continue
+
+                year = int(year_raw)
+                value = float(value_raw)
+
+                await conn.execute(
+                    """
+                    INSERT INTO fao_fertilizer
+                        (year, item, item_code, element, element_code, unit, value)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (item_code, element_code, year) DO UPDATE
+                        SET item    = EXCLUDED.item,
+                            element = EXCLUDED.element,
+                            unit    = EXCLUDED.unit,
+                            value   = EXCLUDED.value
+                    """,
+                    year, item, item_code, element, element_code, unit, value,
+                )
+                inserted += 1
+            except Exception as e:
+                print(f"FAO RI insert error: {e} | row: {row}")
+                continue
+
+    return {"records_inserted": inserted, "message": f"Synced {inserted} FAO Fertilizer records from FAOSTAT"}
+
+
+def _fetch_fertilizer_sync() -> list[dict]:
+    _configure_faostat()
+    data = faostat.get_data("RFN", pars={"area": GHANA_AREA_CODE}, null_values=False)
+    rows = list(data)
+    if not rows:
+        return []
+    header = rows[0]
+    return [dict(zip(header, r)) for r in rows[1:]]
+
+
+def _fetch_land_use_sync() -> list[dict]:
+    _configure_faostat()
+    data = faostat.get_data("RL", pars={"area": GHANA_AREA_CODE}, null_values=False)
+    rows = list(data)
+    if not rows:
+        return []
+    header = rows[0]
+    return [dict(zip(header, r)) for r in rows[1:]]
+
+
+async def sync_fao_land_use() -> dict:
+    """Fetch FAO Land Use (RL domain) data for Ghana."""
+    try:
+        rows = await asyncio.to_thread(_fetch_land_use_sync)
+    except Exception as e:
+        return {"records_inserted": 0, "message": f"FAOSTAT error: {e}"}
+
+    if not rows:
+        return {"records_inserted": 0, "message": "No Land Use data returned"}
+
+    pool = await get_pool()
+    inserted = 0
+
+    async with pool.acquire() as conn:
+        for row in rows:
+            try:
+                year_raw = row.get("Year")
+                item = str(row.get("Item", "")).strip()
+                item_code = str(row.get("Item Code", "")).strip() or None
+                element = str(row.get("Element", "")).strip() or None
+                element_code = str(row.get("Element Code", row.get("ElementCode", ""))).strip() or None
+                unit = str(row.get("Unit", "")).strip() or None
+                value_raw = row.get("Value")
+
+                if year_raw is None or not item or value_raw is None:
+                    continue
+
+                year = int(year_raw)
+                value = float(value_raw)
+
+                await conn.execute(
+                    """
+                    INSERT INTO fao_land_use
+                        (year, item, item_code, element, element_code, unit, value)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (item_code, element_code, year) DO UPDATE
+                        SET item    = EXCLUDED.item,
+                            element = EXCLUDED.element,
+                            unit    = EXCLUDED.unit,
+                            value   = EXCLUDED.value
+                    """,
+                    year, item, item_code, element, element_code, unit, value,
+                )
+                inserted += 1
+            except Exception as e:
+                print(f"FAO RL insert error: {e} | row: {row}")
+                continue
+
+    return {"records_inserted": inserted, "message": f"Synced {inserted} FAO Land Use records from FAOSTAT"}
+
+
+async def sync_fao_trade() -> dict:
+    """Fetch FAO Crops & Livestock Trade data for Ghana."""
+    try:
+        rows = await asyncio.to_thread(_fetch_trade_sync)
+    except Exception as e:
+        return {"records_inserted": 0, "message": f"FAOSTAT error: {e}"}
+
+    if not rows:
+        return {"records_inserted": 0, "message": "No Trade data returned"}
+
+    pool = await get_pool()
+    inserted = 0
+
+    async with pool.acquire() as conn:
+        for row in rows:
+            try:
+                year_raw = row.get("Year")
+                item = str(row.get("Item", "")).strip()
+                item_code = str(row.get("Item Code", "")).strip() or None
+                element = str(row.get("Element", "")).strip() or None
+                element_code = str(row.get("Element Code", row.get("ElementCode", ""))).strip() or None
+                unit = str(row.get("Unit", "")).strip() or None
+                value_raw = row.get("Value")
+
+                if year_raw is None or not item or value_raw is None:
+                    continue
+
+                year = int(year_raw)
+                value = float(value_raw)
+
+                await conn.execute(
+                    """
+                    INSERT INTO fao_trade
+                        (year, item, item_code, element, element_code, unit, value)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (item_code, element_code, year) DO UPDATE
+                        SET item    = EXCLUDED.item,
+                            element = EXCLUDED.element,
+                            unit    = EXCLUDED.unit,
+                            value   = EXCLUDED.value
+                    """,
+                    year, item, item_code, element, element_code, unit, value,
+                )
+                inserted += 1
+            except Exception as e:
+                print(f"FAO TCL insert error: {e} | row: {row}")
+                continue
+
+    return {"records_inserted": inserted, "message": f"Synced {inserted} FAO Trade records from FAOSTAT"}
+
+
 # ── FBS: Food Balances ────────────────────────────────────────────────────────
 
 def _fetch_food_balances_sync() -> list[dict]:

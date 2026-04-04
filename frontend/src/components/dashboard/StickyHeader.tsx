@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { NavLinks } from "./NavLinks";
 
 export function StickyHeader() {
@@ -26,12 +27,12 @@ export function StickyHeader() {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 py-4 transition-transform duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 py-2 transition-transform duration-300 ${
         visible ? "translate-y-0" : "-translate-y-full"
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-xl font-bold text-gray-900">CROPS</h1>
+        <Link href="/" className="text-xl font-bold text-gray-900 hover:text-gray-600 transition-colors">CROPS</Link>
         <NavLinks />
       </div>
     </header>

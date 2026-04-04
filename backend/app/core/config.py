@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     faostat_token: str = ""
 
     class Config:
-        env_file = ".env"
+        env_file = "../.env"
+        extra = "ignore"
 
 
 @lru_cache

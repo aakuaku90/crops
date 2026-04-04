@@ -321,6 +321,161 @@ async def get_fao_supply_utilization(
     return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
+@router.get("/population")
+async def get_fao_population(
+    element: Optional[str] = Query(None),
+    pool: asyncpg.Pool = Depends(get_pool),
+):
+    """Return FAO population records. Optionally filter by ?element=."""
+    conditions = []
+    params = []
+    idx = 1
+
+    if element:
+        conditions.append(f"element ILIKE ${idx}")
+        params.append(f"%{element}%")
+        idx += 1
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = f"""
+        SELECT id, year, item, item_code, element, element_code, unit, value
+        FROM fao_population
+        {where}
+        ORDER BY year ASC, element
+    """
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+
+    return [dict(r) for r in rows]
+
+
+@router.get("/trade/items")
+async def get_fao_trade_items(pool: asyncpg.Pool = Depends(get_pool)):
+    """Return distinct item names from fao_trade."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT item FROM fao_trade WHERE item IS NOT NULL AND item != '' ORDER BY item"
+        )
+    return [r["item"] for r in rows]
+
+
+@router.get("/trade")
+async def get_fao_trade(
+    item: Optional[str] = Query(None),
+    element: Optional[str] = Query(None),
+    limit: int = Query(100, le=1000),
+    offset: int = Query(0),
+    pool: asyncpg.Pool = Depends(get_pool),
+):
+    """Return FAO Trade records with pagination."""
+    conditions = []
+    params = []
+    idx = 1
+
+    if item:
+        conditions.append(f"item ILIKE ${idx}")
+        params.append(f"%{item}%")
+        idx += 1
+
+    if element:
+        conditions.append(f"element ILIKE ${idx}")
+        params.append(f"%{element}%")
+        idx += 1
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = f"""
+        SELECT id, year, item, item_code, element, element_code, unit, value
+        FROM fao_trade
+        {where}
+        ORDER BY year ASC, item, element
+        LIMIT ${idx} OFFSET ${idx + 1}
+    """
+    params.extend([limit, offset])
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM fao_trade {where}", *params[:-2])
+
+    return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
+# ── RI: Fertilizer Use ────────────────────────────────────────────────────────
+
+@router.get("/fertilizer/items")
+async def get_fao_fertilizer_items(pool: asyncpg.Pool = Depends(get_pool)):
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT item FROM fao_fertilizer WHERE item IS NOT NULL AND item != '' ORDER BY item"
+        )
+    return [r["item"] for r in rows]
+
+
+@router.get("/fertilizer")
+async def get_fao_fertilizer(
+    item: Optional[str] = Query(None),
+    element: Optional[str] = Query(None),
+    limit: int = Query(100, le=1000),
+    offset: int = Query(0),
+    pool: asyncpg.Pool = Depends(get_pool),
+):
+    conditions, params, idx = [], [], 1
+    if item:
+        conditions.append(f"item ILIKE ${idx}"); params.append(f"%{item}%"); idx += 1
+    if element:
+        conditions.append(f"element ILIKE ${idx}"); params.append(f"%{element}%"); idx += 1
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = f"""
+        SELECT id, year, item, item_code, element, element_code, unit, value
+        FROM fao_fertilizer {where}
+        ORDER BY year ASC, item, element
+        LIMIT ${idx} OFFSET ${idx + 1}
+    """
+    params.extend([limit, offset])
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM fao_fertilizer {where}", *params[:-2])
+    return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
+# ── RL: Land Use ──────────────────────────────────────────────────────────────
+
+@router.get("/land-use/items")
+async def get_fao_land_use_items(pool: asyncpg.Pool = Depends(get_pool)):
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT item FROM fao_land_use WHERE item IS NOT NULL AND item != '' ORDER BY item"
+        )
+    return [r["item"] for r in rows]
+
+
+@router.get("/land-use")
+async def get_fao_land_use(
+    item: Optional[str] = Query(None),
+    element: Optional[str] = Query(None),
+    limit: int = Query(100, le=1000),
+    offset: int = Query(0),
+    pool: asyncpg.Pool = Depends(get_pool),
+):
+    conditions, params, idx = [], [], 1
+    if item:
+        conditions.append(f"item ILIKE ${idx}"); params.append(f"%{item}%"); idx += 1
+    if element:
+        conditions.append(f"element ILIKE ${idx}"); params.append(f"%{element}%"); idx += 1
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = f"""
+        SELECT id, year, item, item_code, element, element_code, unit, value
+        FROM fao_land_use {where}
+        ORDER BY year ASC, item, element
+        LIMIT ${idx} OFFSET ${idx + 1}
+    """
+    params.extend([limit, offset])
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM fao_land_use {where}", *params[:-2])
+    return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
 @router.get("/food-balances/items")
 async def get_fao_food_balance_items(pool: asyncpg.Pool = Depends(get_pool)):
     """Return distinct item names from fao_food_balances."""

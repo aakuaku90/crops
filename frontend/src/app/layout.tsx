@@ -20,7 +20,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <div className="min-h-screen bg-gray-50">
           <StickyHeader />
-          <main className="max-w-7xl mx-auto px-6 py-8 pt-24">{children}</main>
+          <main className="max-w-7xl mx-auto px-6 py-8 pt-16">{children}</main>
           <footer className="border-t border-gray-200 mt-16 py-6 px-6">
             <div className="max-w-7xl mx-auto text-center text-xs text-gray-400">
               Data source: HDEX (WFP Food Prices) &amp; FAO FAOSTAT API &bull; Country: Ghana (GHA)

@@ -7,6 +7,8 @@ import {
   Line,
   BarChart,
   Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -57,6 +59,21 @@ import {
   getFaoSupplyUtilization,
   getFaoSupplyUtilizationItems,
   triggerFaoSupplyUtilizationSync,
+  FaoTrade,
+  getFaoTrade,
+  getFaoTradeItems,
+  triggerFaoTradeSync,
+  FaoPopulation,
+  getFaoPopulation,
+  triggerFaoPopulationSync,
+  FaoFertilizer,
+  getFaoFertilizer,
+  getFaoFertilizerItems,
+  triggerFaoFertilizerSync,
+  FaoLandUse,
+  getFaoLandUse,
+  getFaoLandUseItems,
+  triggerFaoLandUseSync,
 } from "@/lib/api";
 
 // ── Colour palette for the three CPI series ──────────────────────────────────
@@ -89,6 +106,19 @@ function formatYAxis(value: number): string {
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+}
+
+// Converts FAOSTAT scaled units to true values:
+//   "1000 t"      → value × 1000,     unit "t"
+//   "million US$" → value × 1000000,  unit "US$"
+function scaleToTrueValue(value: number, unit: string | null): { value: number; unit: string } {
+  if (unit && unit.startsWith("1000 ")) {
+    return { value: value * 1000, unit: unit.slice(5) };
+  }
+  if (unit && unit.startsWith("million ")) {
+    return { value: value * 1_000_000, unit: unit.slice(8) };
+  }
+  return { value, unit: unit ?? "—" };
 }
 
 function buildCpiChartData(records: FaoCpiRecord[]) {
@@ -129,45 +159,39 @@ function SyncBtn({
   onSync: () => Promise<{ status: string; records_inserted: number; message: string }>;
 }) {
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const handleClick = async () => {
     setLoading(true);
-    setMsg(null);
     try {
-      const result = await onSync();
-      setMsg(result.message);
+      await onSync();
     } catch {
-      setMsg("Sync failed — check console");
+      // ignore
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      <button
-        onClick={handleClick}
-        disabled={loading}
-        className="inline-flex items-center gap-2 rounded-full bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
-      >
-        {loading ? (
-          <>
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            Syncing…
-          </>
-        ) : (
-          label
-        )}
-      </button>
-      {msg && <p className="text-xs text-gray-500">{msg}</p>}
-    </div>
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="inline-flex items-center gap-2 rounded-full bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
+    >
+      {loading ? (
+        <>
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          Syncing…
+        </>
+      ) : (
+        label
+      )}
+    </button>
   );
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type Tab = "cpi" | "producer" | "food-security" | "crop-production" | "exchange-rates" | "diet-cost" | "value-production" | "food-balances" | "supply-utilization";
+type Tab = "cpi" | "producer" | "food-security" | "crop-production" | "exchange-rates" | "diet-cost" | "value-production" | "food-balances" | "supply-utilization" | "trade" | "population" | "fertilizer" | "land-use";
 
 const TAB_LABELS: Record<Tab, string> = {
   "cpi": "Consumer Price Indices",
@@ -179,11 +203,16 @@ const TAB_LABELS: Record<Tab, string> = {
   "value-production": "Value of Production",
   "food-balances": "Food Balances",
   "supply-utilization": "Supply Utilization",
+  "trade": "Trade Flows",
+  "population": "Population",
+  "fertilizer": "Fertilizer Use",
+  "land-use": "Land Use",
 };
 
 const CROP_ELEMENTS = ["Area harvested", "Production", "Yield"];
+const TRADE_ELEMENTS = ["Import Quantity", "Export Quantity", "Import Value", "Export Value"];
 
-const VALID_TABS = new Set<Tab>(["cpi", "producer", "food-security", "crop-production", "exchange-rates", "diet-cost", "value-production", "food-balances", "supply-utilization"]);
+const VALID_TABS = new Set<Tab>(["cpi", "producer", "food-security", "crop-production", "exchange-rates", "diet-cost", "value-production", "food-balances", "supply-utilization", "trade", "population", "fertilizer", "land-use"]);
 
 function FaoPageInner() {
   const router = useRouter();
@@ -260,6 +289,43 @@ function FaoPageInner() {
   const [sclSelectedElement, setSclSelectedElement] = useState<string>("");
   const [loadingScl, setLoadingScl] = useState(false);
   const [sclSidebarRecord, setSclSidebarRecord] = useState<FaoSupplyUtilization | null>(null);
+
+  // ── Population state ──
+  const [popRecords, setPopRecords] = useState<FaoPopulation[]>([]);
+  const [loadingPop, setLoadingPop] = useState(false);
+
+  // ── Fertilizer state ──
+  const [fertRecords, setFertRecords] = useState<FaoFertilizer[]>([]);
+  const [fertTotal, setFertTotal] = useState(0);
+  const [fertOffset, setFertOffset] = useState(0);
+  const [fertHasMore, setFertHasMore] = useState(true);
+  const fertSentinelRef = useRef<HTMLDivElement>(null);
+  const [fertItems, setFertItems] = useState<string[]>([]);
+  const [fertSelectedItem, setFertSelectedItem] = useState("");
+  const [fertSelectedElement, setFertSelectedElement] = useState("");
+  const [loadingFert, setLoadingFert] = useState(false);
+
+  // ── Land Use state ──
+  const [landRecords, setLandRecords] = useState<FaoLandUse[]>([]);
+  const [landTotal, setLandTotal] = useState(0);
+  const [landOffset, setLandOffset] = useState(0);
+  const [landHasMore, setLandHasMore] = useState(true);
+  const landSentinelRef = useRef<HTMLDivElement>(null);
+  const [landItems, setLandItems] = useState<string[]>([]);
+  const [landSelectedItem, setLandSelectedItem] = useState("");
+  const [landSelectedElement, setLandSelectedElement] = useState("");
+  const [loadingLand, setLoadingLand] = useState(false);
+
+  // ── Trade state ──
+  const [tradeRecords, setTradeRecords] = useState<FaoTrade[]>([]);
+  const [tradeTotal, setTradeTotal] = useState(0);
+  const [tradeOffset, setTradeOffset] = useState(0);
+  const [tradeHasMore, setTradeHasMore] = useState(true);
+  const tradeSentinelRef = useRef<HTMLDivElement>(null);
+  const [tradeItems, setTradeItems] = useState<string[]>([]);
+  const [tradeSelectedItem, setTradeSelectedItem] = useState<string>("");
+  const [tradeSelectedElement, setTradeSelectedElement] = useState<string>("");
+  const [loadingTrade, setLoadingTrade] = useState(false);
 
   // ── Load CPI ──
   const loadCpi = useCallback(async () => {
@@ -382,6 +448,63 @@ function FaoPageInner() {
     if (data.length > 0) setSclSelectedItem(data[0]);
   }, []);
 
+  // ── Load Population ──
+  const loadPopulation = useCallback(async () => {
+    setLoadingPop(true);
+    const data = await getFaoPopulation();
+    setPopRecords(data);
+    setLoadingPop(false);
+  }, []);
+
+  // ── Load Trade (infinite scroll) ──
+  const fetchMoreTrade = useCallback(async (currentOffset: number, reset = false) => {
+    setLoadingTrade(true);
+    const result = await getFaoTrade(tradeSelectedItem || undefined, tradeSelectedElement || undefined, 100, currentOffset);
+    setTradeRecords(prev => reset ? result.data : [...prev, ...result.data]);
+    setTradeTotal(result.total);
+    setTradeOffset(currentOffset + result.data.length);
+    setTradeHasMore(currentOffset + result.data.length < result.total);
+    setLoadingTrade(false);
+  }, [tradeSelectedItem, tradeSelectedElement]);
+
+  const loadTradeItems = useCallback(async () => {
+    const data = await getFaoTradeItems();
+    setTradeItems(data);
+    if (data.length > 0) setTradeSelectedItem(data[0]);
+  }, []);
+
+  // ── Load Fertilizer (infinite scroll) ──
+  const fetchMoreFert = useCallback(async (currentOffset: number, reset = false) => {
+    setLoadingFert(true);
+    const result = await getFaoFertilizer(fertSelectedItem || undefined, fertSelectedElement || undefined, 100, currentOffset);
+    setFertRecords(prev => reset ? result.data : [...prev, ...result.data]);
+    setFertTotal(result.total);
+    setFertOffset(currentOffset + result.data.length);
+    setFertHasMore(currentOffset + result.data.length < result.total);
+    setLoadingFert(false);
+  }, [fertSelectedItem, fertSelectedElement]);
+
+  const loadFertItems = useCallback(async () => {
+    const data = await getFaoFertilizerItems();
+    setFertItems(data);
+  }, []);
+
+  // ── Load Land Use (infinite scroll) ──
+  const fetchMoreLand = useCallback(async (currentOffset: number, reset = false) => {
+    setLoadingLand(true);
+    const result = await getFaoLandUse(landSelectedItem || undefined, landSelectedElement || undefined, 100, currentOffset);
+    setLandRecords(prev => reset ? result.data : [...prev, ...result.data]);
+    setLandTotal(result.total);
+    setLandOffset(currentOffset + result.data.length);
+    setLandHasMore(currentOffset + result.data.length < result.total);
+    setLoadingLand(false);
+  }, [landSelectedItem, landSelectedElement]);
+
+  const loadLandItems = useCallback(async () => {
+    const data = await getFaoLandUseItems();
+    setLandItems(data);
+  }, []);
+
   // ── Initial loads ──
   useEffect(() => {
     // CPI + producer always load upfront
@@ -410,6 +533,17 @@ function FaoPageInner() {
     } else if (t === "supply-utilization") {
       loadSclItems();
       fetchMoreScl(0, true);
+    } else if (t === "trade") {
+      loadTradeItems();
+      fetchMoreTrade(0, true);
+    } else if (t === "population") {
+      loadPopulation();
+    } else if (t === "fertilizer") {
+      loadFertItems();
+      fetchMoreFert(0, true);
+    } else if (t === "land-use") {
+      loadLandItems();
+      fetchMoreLand(0, true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -465,6 +599,16 @@ function FaoPageInner() {
     }
   }, [sclSelectedItem, sclSelectedElement, fetchMoreScl]);
 
+  // ── Trade: reset + refetch when item/element changes ──
+  useEffect(() => {
+    if (loadedTabs.current.has("trade")) {
+      setTradeRecords([]);
+      setTradeOffset(0);
+      setTradeHasMore(true);
+      fetchMoreTrade(0, true);
+    }
+  }, [tradeSelectedItem, tradeSelectedElement, fetchMoreTrade]);
+
   // ── Infinite scroll observers ──
   useEffect(() => {
     if (!cropHasMore || loadingCrop) return;
@@ -514,6 +658,56 @@ function FaoPageInner() {
     return () => observer.disconnect();
   }, [sclHasMore, loadingScl, sclOffset, fetchMoreScl]);
 
+  useEffect(() => {
+    if (!tradeHasMore || loadingTrade) return;
+    const sentinel = tradeSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) fetchMoreTrade(tradeOffset); },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [tradeHasMore, loadingTrade, tradeOffset, fetchMoreTrade]);
+
+  useEffect(() => {
+    if (loadedTabs.current.has("fertilizer")) {
+      setFertRecords([]); setFertOffset(0); setFertHasMore(true);
+      fetchMoreFert(0, true);
+    }
+  }, [fertSelectedItem, fertSelectedElement, fetchMoreFert]);
+
+  useEffect(() => {
+    if (!fertHasMore || loadingFert) return;
+    const sentinel = fertSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) fetchMoreFert(fertOffset); },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fertHasMore, loadingFert, fertOffset, fetchMoreFert]);
+
+  useEffect(() => {
+    if (loadedTabs.current.has("land-use")) {
+      setLandRecords([]); setLandOffset(0); setLandHasMore(true);
+      fetchMoreLand(0, true);
+    }
+  }, [landSelectedItem, landSelectedElement, fetchMoreLand]);
+
+  useEffect(() => {
+    if (!landHasMore || loadingLand) return;
+    const sentinel = landSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) fetchMoreLand(landOffset); },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [landHasMore, loadingLand, landOffset, fetchMoreLand]);
+
   // ── Lazy load on tab switch ──
   const handleTabChange = useCallback((t: Tab) => {
     setTab(t);
@@ -538,8 +732,19 @@ function FaoPageInner() {
     } else if (t === "supply-utilization") {
       loadSclItems();
       fetchMoreScl(0, true);
+    } else if (t === "trade") {
+      loadTradeItems();
+      fetchMoreTrade(0, true);
+    } else if (t === "population") {
+      loadPopulation();
+    } else if (t === "fertilizer") {
+      loadFertItems();
+      fetchMoreFert(0, true);
+    } else if (t === "land-use") {
+      loadLandItems();
+      fetchMoreLand(0, true);
     }
-  }, [router, loadFsItems, loadFoodSecurity, loadCropItems, fetchMoreCrop, loadExchangeRates, loadDietCost, loadValueItems, fetchMoreValue, loadFoodBalItems, fetchMoreFoodBal, loadSclItems, fetchMoreScl]);
+  }, [router, loadFsItems, loadFoodSecurity, loadCropItems, fetchMoreCrop, loadExchangeRates, loadDietCost, loadValueItems, fetchMoreValue, loadFoodBalItems, fetchMoreFoodBal, loadSclItems, fetchMoreScl, loadTradeItems, fetchMoreTrade, loadPopulation, loadFertItems, fetchMoreFert, loadLandItems, fetchMoreLand]);
 
   // ── Chart data ──
   const cpiChartData = buildCpiChartData(cpiRecords);
@@ -604,7 +809,7 @@ function FaoPageInner() {
     );
     return filtered
       .sort((a, b) => a.year - b.year)
-      .map((r) => ({ label: String(r.year), value: r.value, unit: r.unit }));
+      .map((r) => { const s = scaleToTrueValue(r.value, r.unit); return { label: String(r.year), value: s.value, unit: r.unit }; });
   })();
 
   // Food Balances chart: by year for selected item+element
@@ -616,7 +821,7 @@ function FaoPageInner() {
     );
     return filtered
       .sort((a, b) => a.year - b.year)
-      .map((r) => ({ label: String(r.year), value: r.value, unit: r.unit }));
+      .map((r) => { const s = scaleToTrueValue(r.value, r.unit); return { label: String(r.year), value: s.value, unit: r.unit }; });
   })();
 
   const valueElements = [...new Set(valueRecords.map((r) => r.element).filter(Boolean))] as string[];
@@ -641,14 +846,14 @@ function FaoPageInner() {
     if (sclSelectedElement) {
       return filtered
         .sort((a, b) => a.year - b.year)
-        .map((r) => ({ label: String(r.year), value: r.value }));
+        .map((r) => ({ label: String(r.year), value: scaleToTrueValue(r.value, r.unit).value }));
     }
     // No element selected: pivot elements as series
     const byYear: Record<string, Record<string, number>> = {};
     for (const r of filtered) {
       if (!r.element) continue;
       if (!byYear[r.year]) byYear[r.year] = {};
-      byYear[r.year][r.element] = r.value;
+      byYear[r.year][r.element] = scaleToTrueValue(r.value, r.unit).value;
     }
     return Object.entries(byYear)
       .sort(([a], [b]) => Number(a) - Number(b))
@@ -658,6 +863,85 @@ function FaoPageInner() {
   const sclElements = [...new Set(sclRecords.map((r) => r.element).filter(Boolean))] as string[];
   const sclItemOptions = [{ value: "", label: "All items" }, ...sclItems.map((i) => ({ value: i, label: i }))];
   const sclElementOptions = [{ value: "", label: "All elements" }, ...sclElements.map((e) => ({ value: e, label: e }))];
+
+  // Trade chart: import vs export quantities by year for selected item
+  const tradeChartData = (() => {
+    const byYear: Record<number, Record<string, number>> = {};
+    for (const r of tradeRecords) {
+      if (!r.element) continue;
+      if (!byYear[r.year]) byYear[r.year] = {};
+      byYear[r.year][r.element] = scaleToTrueValue(r.value, r.unit).value;
+    }
+    return Object.entries(byYear)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([year, vals]) => ({ label: year, ...vals }));
+  })();
+
+  const tradeElements = tradeSelectedElement
+    ? [tradeSelectedElement]
+    : [...new Set(tradeRecords.map((r) => r.element).filter(Boolean))] as string[];
+  // Population chart: total population by year, series per element
+  const popSeries = ["Total Population - Both sexes", "Urban population", "Rural population"];
+  const popColors: Record<string, string> = {
+    "Total Population - Both sexes": "#16a34a",
+    "Urban population": "#2563eb",
+    "Rural population": "#d97706",
+  };
+  const popChartData = (() => {
+    const byYear: Record<number, Record<string, number>> = {};
+    for (const r of popRecords) {
+      if (!r.element || !popSeries.includes(r.element)) continue;
+      if (!byYear[r.year]) byYear[r.year] = {};
+      byYear[r.year][r.element] = r.value * 1000;
+    }
+    return Object.entries(byYear)
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([year, vals]) => ({ label: year, ...vals }));
+  })();
+
+  const tradeItemOptions = [{ value: "", label: "All items" }, ...tradeItems.map((i) => ({ value: i, label: i }))];
+  const tradeElementOptions = [{ value: "", label: "All elements" }, ...TRADE_ELEMENTS.map((e) => ({ value: e, label: e }))];
+  const TRADE_COLORS: Record<string, string> = {
+    "Import Quantity": "#2563eb",
+    "Export Quantity": "#16a34a",
+    "Import Value": "#7c3aed",
+    "Export Value": "#d97706",
+  };
+
+  // Fertilizer chart: by year, one series per item
+  const fertChartData = (() => {
+    const filtered = fertRecords.filter(
+      (r) => (!fertSelectedItem || r.item === fertSelectedItem) && (!fertSelectedElement || r.element === fertSelectedElement)
+    );
+    const byYear: Record<number, Record<string, number>> = {};
+    for (const r of filtered) {
+      if (!r.item) continue;
+      if (!byYear[r.year]) byYear[r.year] = {};
+      byYear[r.year][r.item] = scaleToTrueValue(r.value, r.unit).value;
+    }
+    return Object.entries(byYear).sort(([a], [b]) => Number(a) - Number(b)).map(([year, vals]) => ({ label: year, ...vals }));
+  })();
+  const fertItemOptions = [{ value: "", label: "All items" }, ...fertItems.map((i) => ({ value: i, label: i }))];
+  const fertElements = [...new Set(fertRecords.map((r) => r.element).filter(Boolean))] as string[];
+  const fertElementOptions = [{ value: "", label: "All elements" }, ...fertElements.map((e) => ({ value: e, label: e }))];
+
+  // Land Use chart: stacked area by year, one series per item
+  const landChartData = (() => {
+    const filtered = landRecords.filter(
+      (r) => (!landSelectedItem || r.item === landSelectedItem) && (!landSelectedElement || r.element === landSelectedElement)
+    );
+    const byYear: Record<number, Record<string, number>> = {};
+    for (const r of filtered) {
+      if (!r.item) continue;
+      if (!byYear[r.year]) byYear[r.year] = {};
+      byYear[r.year][r.item] = scaleToTrueValue(r.value, r.unit).value;
+    }
+    return Object.entries(byYear).sort(([a], [b]) => Number(a) - Number(b)).map(([year, vals]) => ({ label: year, ...vals }));
+  })();
+  const landItemOptions = [{ value: "", label: "All items" }, ...landItems.map((i) => ({ value: i, label: i }))];
+  const landElements = [...new Set(landRecords.map((r) => r.element).filter(Boolean))] as string[];
+  const landElementOptions = [{ value: "", label: "All elements" }, ...landElements.map((e) => ({ value: e, label: e }))];
+  const landSeries = [...new Set(landChartData.flatMap((d) => Object.keys(d).filter((k) => k !== "label")))];
 
   return (
     <div className="space-y-6">
@@ -763,12 +1047,55 @@ function FaoPageInner() {
             }}
           />
         )}
+        {tab === "population" && (
+          <SyncBtn
+            label="Sync Population"
+            onSync={async () => {
+              const result = await triggerFaoPopulationSync();
+              await loadPopulation();
+              return result;
+            }}
+          />
+        )}
+        {tab === "trade" && (
+          <SyncBtn
+            label="Sync Trade Flows"
+            onSync={async () => {
+              const result = await triggerFaoTradeSync();
+              await loadTradeItems();
+              await fetchMoreTrade(0, true);
+              return result;
+            }}
+          />
+        )}
+        {tab === "fertilizer" && (
+          <SyncBtn
+            label="Sync Fertilizer Use"
+            onSync={async () => {
+              const result = await triggerFaoFertilizerSync();
+              await loadFertItems();
+              await fetchMoreFert(0, true);
+              return result;
+            }}
+          />
+        )}
+        {tab === "land-use" && (
+          <SyncBtn
+            label="Sync Land Use"
+            onSync={async () => {
+              const result = await triggerFaoLandUseSync();
+              await loadLandItems();
+              await fetchMoreLand(0, true);
+              return result;
+            }}
+          />
+        )}
       </div>
 
       {/* ── Tabs ── */}
       <div className="overflow-x-auto scrollbar-hide">
         <div className="flex gap-1 rounded-full bg-gray-100 p-1 min-w-max">
-          {(["cpi", "producer", "food-security", "crop-production", "exchange-rates", "diet-cost", "value-production", "food-balances", "supply-utilization"] as Tab[]).map((t) => (
+          {(["cpi", "producer", "food-security", "crop-production", "exchange-rates", "diet-cost", "value-production", "food-balances", "supply-utilization", "trade", "population", "fertilizer", "land-use"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => handleTabChange(t)}
@@ -1439,17 +1766,20 @@ function FaoPageInner() {
                         </tr>
                       </thead>
                       <tbody>
-                        {valueRecords.map((r) => (
+                        {valueRecords.map((r) => {
+                          const s = scaleToTrueValue(r.value, r.unit);
+                          return (
                           <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                             <td className="py-2 pr-4 text-xs text-muted-foreground">{r.year}</td>
                             <td className="py-2 pr-4 font-medium">{r.item}</td>
                             <td className="py-2 pr-4 text-xs text-muted-foreground">{r.element || "—"}</td>
-                            <td className="py-2 pr-4 text-xs text-muted-foreground">{r.unit || "—"}</td>
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{s.unit || "—"}</td>
                             <td className="py-2 pr-4 text-right font-mono font-semibold">
-                              {Number(r.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              {s.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1567,17 +1897,20 @@ function FaoPageInner() {
                         </tr>
                       </thead>
                       <tbody>
-                        {foodBalRecords.map((r) => (
+                        {foodBalRecords.map((r) => {
+                          const s = scaleToTrueValue(r.value, r.unit);
+                          return (
                           <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                             <td className="py-2 pr-4 text-xs text-muted-foreground">{r.year}</td>
                             <td className="py-2 pr-4 font-medium">{r.item}</td>
                             <td className="py-2 pr-4 text-xs text-muted-foreground">{r.element || "—"}</td>
-                            <td className="py-2 pr-4 text-xs text-muted-foreground">{r.unit || "—"}</td>
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{s.unit || "—"}</td>
                             <td className="py-2 pr-4 text-right font-mono font-semibold">
-                              {Number(r.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              {s.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1710,7 +2043,9 @@ function FaoPageInner() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sclRecords.map((r) => (
+                        {sclRecords.map((r) => {
+                          const s = scaleToTrueValue(r.value, r.unit);
+                          return (
                           <tr
                             key={r.id}
                             onClick={() => setSclSidebarRecord(r)}
@@ -1721,12 +2056,13 @@ function FaoPageInner() {
                               {r.item.length > 28 ? `${r.item.slice(0, 28)}…` : r.item}
                             </td>
                             <td className="py-2 pr-4 text-xs text-muted-foreground">{r.element || "—"}</td>
-                            <td className="py-2 pr-4 text-xs text-muted-foreground">{r.unit || "—"}</td>
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{s.unit || "—"}</td>
                             <td className="py-2 pr-4 text-right font-mono font-semibold">
-                              {Number(r.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              {s.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1795,21 +2131,388 @@ function FaoPageInner() {
               {sclSidebarRecord.unit && (
                 <div>
                   <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Unit</p>
-                  <p className="text-gray-900">{sclSidebarRecord.unit}</p>
+                  <p className="text-gray-900">{scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit).unit}</p>
                 </div>
               )}
               <div>
                 <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Value</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {Number(sclSidebarRecord.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  {(() => { const s = scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit); return s.value.toLocaleString(undefined, { maximumFractionDigits: 2 }); })()}
                   {sclSidebarRecord.unit && (
-                    <span className="text-sm font-normal text-gray-400 ml-1">{sclSidebarRecord.unit}</span>
+                    <span className="text-sm font-normal text-gray-400 ml-1">{scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit).unit}</span>
                   )}
                 </p>
               </div>
             </div>
           </div>
         </>
+      )}
+      {/* ── Population Tab ── */}
+      {tab === "population" && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Ghana Population Over Time</CardTitle>
+              <CardDescription>Total, urban and rural population · estimates &amp; projections</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingPop ? (
+                <Skeleton className="h-72 w-full" />
+              ) : popChartData.length === 0 ? (
+                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
+                  No data — click &quot;Sync Population&quot; to load
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={popChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={Math.floor(popChartData.length / 8)} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatYAxis(v)} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number) => [Math.round(Number(value)).toLocaleString(), ""]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {popSeries.map((s) => (
+                      <Line key={s} type="monotone" dataKey={s} stroke={popColors[s]} dot={false} strokeWidth={2} connectNulls />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Population Records</CardTitle>
+              <CardDescription>{popRecords.length.toLocaleString()} records</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingPop ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+                </div>
+              ) : popRecords.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-400">
+                  No data — click &quot;Sync Population&quot; to load
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground">Year</th>
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground">Element</th>
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground text-right">Population</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {popRecords.map((r) => (
+                        <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                          <td className="py-2 pr-4 text-xs text-muted-foreground">{r.year}</td>
+                          <td className="py-2 pr-4 font-medium">{r.element || "—"}</td>
+                          <td className="py-2 pr-4 text-right font-mono font-semibold">
+                            {Math.round(r.value * 1000).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Trade Flows Tab ── */}
+      {tab === "trade" && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-3">
+            {tradeItems.length === 0 ? (
+              <Skeleton className="h-10 w-64" />
+            ) : (
+              <SearchableSelect
+                options={tradeItemOptions}
+                value={tradeSelectedItem}
+                onValueChange={(v) => setTradeSelectedItem(v)}
+                placeholder="Select commodity…"
+                className="w-72"
+              />
+            )}
+            <SearchableSelect
+              options={tradeElementOptions}
+              value={tradeSelectedElement}
+              onValueChange={(v) => setTradeSelectedElement(v)}
+              placeholder="All elements"
+              className="w-56"
+            />
+            <span className="text-sm text-gray-400">{tradeTotal.toLocaleString()} records</span>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{tradeSelectedItem || "Trade Flows"}</CardTitle>
+              <CardDescription>Import &amp; Export quantities and values (annual)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingTrade && tradeChartData.length === 0 ? (
+                <Skeleton className="h-72 w-full" />
+              ) : tradeChartData.length === 0 ? (
+                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
+                  No data — click &quot;Sync Trade Flows&quot; to load
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={tradeChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 }), ""]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {tradeElements.map((el) => (
+                      <Bar key={el} dataKey={el} fill={TRADE_COLORS[el] ?? "#6b7280"} name={el} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Trade Records</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingTrade && tradeRecords.length === 0 ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+                </div>
+              ) : tradeRecords.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-400">
+                  No data — click &quot;Sync Trade Flows&quot; to load
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm whitespace-nowrap">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground">Year</th>
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground">Item</th>
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground">Element</th>
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground">Unit</th>
+                        <th className="pb-2 pr-4 font-medium text-muted-foreground text-right">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tradeRecords.map((r) => {
+                        const s = scaleToTrueValue(r.value, r.unit);
+                        return (
+                        <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                          <td className="py-2 pr-4 text-xs text-muted-foreground">{r.year}</td>
+                          <td className="py-2 pr-4 font-medium">{r.item}</td>
+                          <td className="py-2 pr-4 text-xs text-muted-foreground">{r.element || "—"}</td>
+                          <td className="py-2 pr-4 text-xs text-muted-foreground">{s.unit || "—"}</td>
+                          <td className="py-2 pr-4 text-right font-mono font-semibold">
+                            {s.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div ref={tradeSentinelRef} className="h-4" />
+                  {loadingTrade && <p className="py-2 text-center text-xs text-gray-400">Loading…</p>}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Fertilizer Use Tab ── */}
+      {tab === "fertilizer" && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-3">
+            {fertItems.length === 0 && loadingFert ? (
+              <><Skeleton className="h-10 w-64" /><Skeleton className="h-10 w-48" /></>
+            ) : (
+              <>
+                <SearchableSelect options={fertItemOptions} value={fertSelectedItem} onValueChange={setFertSelectedItem} placeholder="Filter by item…" className="w-72" />
+                <SearchableSelect options={fertElementOptions} value={fertSelectedElement} onValueChange={setFertSelectedElement} placeholder="Filter by element…" className="w-56" />
+              </>
+            )}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{fertSelectedItem || "Fertilizer Use"}{fertSelectedElement ? ` — ${fertSelectedElement}` : ""}</CardTitle>
+              <CardDescription>Annual fertilizer application data for Ghana (FAO RI)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingFert && fertChartData.length === 0 ? (
+                <Skeleton className="h-72 w-full" />
+              ) : fertChartData.length === 0 ? (
+                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
+                  {fertRecords.length === 0 ? 'No data — click "Sync Fertilizer Use" to load' : "No records for the selected filters"}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={fertChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }), name]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {[...new Set(fertChartData.flatMap((d) => Object.keys(d).filter((k) => k !== "label")))].map((key, i) => (
+                      <Bar key={key} dataKey={key} name={key} fill={dietColors[i % dietColors.length]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Fertilizer Records</CardTitle>
+              <CardDescription>{fertRecords.length.toLocaleString()} of {fertTotal.toLocaleString()} records</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingFert && fertRecords.length === 0 ? (
+                <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+              ) : fertRecords.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-400">No data — click &quot;Sync Fertilizer Use&quot; to load</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Year</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Item</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Element</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Unit</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground text-right">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fertRecords.map((r) => {
+                          const s = scaleToTrueValue(r.value, r.unit);
+                          return (
+                          <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{r.year}</td>
+                            <td className="py-2 pr-4 font-medium">{r.item}</td>
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{r.element || "—"}</td>
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{s.unit || "—"}</td>
+                            <td className="py-2 pr-4 text-right font-mono font-semibold">{s.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                          </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {fertHasMore ? (
+                    <><div ref={fertSentinelRef} className="h-4" />{loadingFert && <div className="space-y-2 pt-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>}</>
+                  ) : (
+                    <p className="pt-4 text-center text-xs text-gray-400">All {fertTotal.toLocaleString()} records loaded</p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Land Use Tab ── */}
+      {tab === "land-use" && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center gap-3">
+            {landItems.length === 0 && loadingLand ? (
+              <><Skeleton className="h-10 w-64" /><Skeleton className="h-10 w-48" /></>
+            ) : (
+              <>
+                <SearchableSelect options={landItemOptions} value={landSelectedItem} onValueChange={setLandSelectedItem} placeholder="Filter by item…" className="w-72" />
+                <SearchableSelect options={landElementOptions} value={landSelectedElement} onValueChange={setLandSelectedElement} placeholder="Filter by element…" className="w-56" />
+              </>
+            )}
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{landSelectedItem || "Agricultural Land Use"}{landSelectedElement ? ` — ${landSelectedElement}` : ""}</CardTitle>
+              <CardDescription>Annual land use data for Ghana (FAO RL)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingLand && landChartData.length === 0 ? (
+                <Skeleton className="h-72 w-full" />
+              ) : landChartData.length === 0 ? (
+                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
+                  {landRecords.length === 0 ? 'No data — click "Sync Land Use" to load' : "No records for the selected filters"}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={320}>
+                  <AreaChart data={landChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }), name]} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    {landSeries.map((key, i) => (
+                      <Area key={key} type="monotone" dataKey={key} name={key} stroke={dietColors[i % dietColors.length]} fill={dietColors[i % dietColors.length]} fillOpacity={0.15} strokeWidth={2} connectNulls />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Land Use Records</CardTitle>
+              <CardDescription>{landRecords.length.toLocaleString()} of {landTotal.toLocaleString()} records</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingLand && landRecords.length === 0 ? (
+                <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+              ) : landRecords.length === 0 ? (
+                <p className="py-8 text-center text-sm text-gray-400">No data — click &quot;Sync Land Use&quot; to load</p>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm whitespace-nowrap">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Year</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Item</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Element</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Unit</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground text-right">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {landRecords.map((r) => {
+                          const s = scaleToTrueValue(r.value, r.unit);
+                          return (
+                          <tr key={r.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{r.year}</td>
+                            <td className="py-2 pr-4 font-medium">{r.item}</td>
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{r.element || "—"}</td>
+                            <td className="py-2 pr-4 text-xs text-muted-foreground">{s.unit || "—"}</td>
+                            <td className="py-2 pr-4 text-right font-mono font-semibold">{s.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                          </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {landHasMore ? (
+                    <><div ref={landSentinelRef} className="h-4" />{loadingLand && <div className="space-y-2 pt-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>}</>
+                  ) : (
+                    <p className="pt-4 text-center text-xs text-gray-400">All {landTotal.toLocaleString()} records loaded</p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );

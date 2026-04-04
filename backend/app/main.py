@@ -14,6 +14,10 @@ from app.services.fao_service import (
     sync_fao_value_production,
     sync_fao_food_balances,
     sync_fao_supply_utilization,
+    sync_fao_trade,
+    sync_fao_population,
+    sync_fao_fertilizer,
+    sync_fao_land_use,
 )
 from app.models.schemas import SyncResponse
 
@@ -151,6 +155,50 @@ async def trigger_fao_food_balances_sync():
 async def trigger_fao_supply_utilization_sync():
     """Trigger manual sync of FAO FAOSTAT Supply Utilization Accounts."""
     result = await sync_fao_supply_utilization()
+    return SyncResponse(
+        status="success",
+        records_inserted=result["records_inserted"],
+        message=result["message"],
+    )
+
+
+@app.post("/api/v1/sync/fao/trade", response_model=SyncResponse, tags=["sync"])
+async def trigger_fao_trade_sync():
+    """Trigger manual sync of FAO FAOSTAT Crops & Livestock Trade."""
+    result = await sync_fao_trade()
+    return SyncResponse(
+        status="success",
+        records_inserted=result["records_inserted"],
+        message=result["message"],
+    )
+
+
+@app.post("/api/v1/sync/fao/population", response_model=SyncResponse, tags=["sync"])
+async def trigger_fao_population_sync():
+    """Trigger manual sync of FAO Annual Population data."""
+    result = await sync_fao_population()
+    return SyncResponse(
+        status="success",
+        records_inserted=result["records_inserted"],
+        message=result["message"],
+    )
+
+
+@app.post("/api/v1/sync/fao/fertilizer", response_model=SyncResponse, tags=["sync"])
+async def trigger_fao_fertilizer_sync():
+    """Trigger manual sync of FAO Fertilizer Use (RI domain)."""
+    result = await sync_fao_fertilizer()
+    return SyncResponse(
+        status="success",
+        records_inserted=result["records_inserted"],
+        message=result["message"],
+    )
+
+
+@app.post("/api/v1/sync/fao/land-use", response_model=SyncResponse, tags=["sync"])
+async def trigger_fao_land_use_sync():
+    """Trigger manual sync of FAO Land Use (RL domain)."""
+    result = await sync_fao_land_use()
     return SyncResponse(
         status="success",
         records_inserted=result["records_inserted"],

@@ -183,6 +183,96 @@ CREATE TABLE IF NOT EXISTS fao_supply_utilization (
     value FLOAT NOT NULL,
     UNIQUE(item_code, element_code, year)
 );
+
+CREATE TABLE IF NOT EXISTS fao_trade (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL,
+    item VARCHAR(255) NOT NULL,
+    item_code VARCHAR(20),
+    element VARCHAR(100),
+    element_code VARCHAR(20),
+    unit VARCHAR(50),
+    value FLOAT NOT NULL,
+    UNIQUE(item_code, element_code, year)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fao_trade_year ON fao_trade(year DESC);
+CREATE INDEX IF NOT EXISTS idx_fao_trade_item ON fao_trade(item);
+
+CREATE TABLE IF NOT EXISTS fao_population (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL,
+    item VARCHAR(255) NOT NULL,
+    item_code VARCHAR(20),
+    element VARCHAR(100),
+    element_code VARCHAR(20),
+    unit VARCHAR(50),
+    value FLOAT NOT NULL,
+    UNIQUE(element_code, year)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fao_population_year ON fao_population(year DESC);
+
+CREATE TABLE IF NOT EXISTS fao_fertilizer (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL,
+    item VARCHAR(255) NOT NULL,
+    item_code VARCHAR(20),
+    element VARCHAR(100),
+    element_code VARCHAR(20),
+    unit VARCHAR(50),
+    value FLOAT NOT NULL,
+    UNIQUE(item_code, element_code, year)
+);
+
+CREATE TABLE IF NOT EXISTS fao_land_use (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL,
+    item VARCHAR(255) NOT NULL,
+    item_code VARCHAR(20),
+    element VARCHAR(100),
+    element_code VARCHAR(20),
+    unit VARCHAR(50),
+    value FLOAT NOT NULL,
+    UNIQUE(item_code, element_code, year)
+);
+
+CREATE TABLE IF NOT EXISTS gss_crop_production (
+    id SERIAL PRIMARY KEY,
+    year INTEGER NOT NULL,
+    region VARCHAR(100) NOT NULL,
+    district VARCHAR(100) NOT NULL DEFAULT '',
+    crop VARCHAR(255) NOT NULL,
+    element VARCHAR(50) NOT NULL,
+    unit VARCHAR(50),
+    value FLOAT,
+    source VARCHAR(100) DEFAULT 'GSS'
+);
+
+CREATE INDEX IF NOT EXISTS idx_gss_crop_year ON gss_crop_production(year DESC);
+CREATE INDEX IF NOT EXISTS idx_gss_crop_region ON gss_crop_production(region);
+CREATE INDEX IF NOT EXISTS idx_gss_crop_crop ON gss_crop_production(crop);
+"""
+
+MIGRATE_SQL = """
+ALTER TABLE gss_crop_production ADD COLUMN IF NOT EXISTS district VARCHAR(100) NOT NULL DEFAULT '';
+ALTER TABLE gss_crop_production ALTER COLUMN value DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_gss_crop_district ON gss_crop_production(district);
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'gss_crop_production_year_region_crop_element_key'
+    ) THEN
+        ALTER TABLE gss_crop_production DROP CONSTRAINT gss_crop_production_year_region_crop_element_key;
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'gss_crop_production_year_region_district_crop_element_key'
+    ) THEN
+        ALTER TABLE gss_crop_production DROP CONSTRAINT gss_crop_production_year_region_district_crop_element_key;
+    END IF;
+END $$;
 """
 
 
@@ -190,3 +280,4 @@ async def init_db():
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(CREATE_TABLES_SQL)
+        await conn.execute(MIGRATE_SQL)

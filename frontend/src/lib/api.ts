@@ -453,3 +453,275 @@ export async function triggerFaoSupplyUtilizationSync(): Promise<{
   const res = await fetch(`${API_BASE}/api/v1/sync/fao/supply-utilization`, { method: "POST" });
   return res.json();
 }
+
+export interface FaoPopulation {
+  id: number;
+  year: number;
+  item: string;
+  item_code: string | null;
+  element: string | null;
+  element_code: string | null;
+  unit: string | null;
+  value: number;
+}
+
+export async function getFaoPopulation(element?: string): Promise<FaoPopulation[]> {
+  const params = new URLSearchParams();
+  if (element) params.set("element", element);
+  const query = params.toString() ? `?${params}` : "";
+  const res = await fetch(`${API_BASE}/api/v1/fao/population${query}`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function triggerFaoPopulationSync(): Promise<{
+  status: string;
+  records_inserted: number;
+  message: string;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/sync/fao/population`, { method: "POST" });
+  return res.json();
+}
+
+export interface FaoTrade {
+  id: number;
+  year: number;
+  item: string;
+  item_code: string | null;
+  element: string | null;
+  element_code: string | null;
+  unit: string | null;
+  value: number;
+}
+
+export async function getFaoTrade(item?: string, element?: string, limit = 100, offset = 0): Promise<{ data: FaoTrade[]; total: number }> {
+  const params = new URLSearchParams();
+  if (item) params.set("item", item);
+  if (element) params.set("element", element);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  const res = await fetch(`${API_BASE}/api/v1/fao/trade?${params}`, { cache: "no-store" });
+  if (!res.ok) return { data: [], total: 0 };
+  return res.json();
+}
+
+export async function getFaoTradeItems(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/v1/fao/trade/items`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function triggerFaoTradeSync(): Promise<{
+  status: string;
+  records_inserted: number;
+  message: string;
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/sync/fao/trade`, { method: "POST" });
+  return res.json();
+}
+
+// ── FAO Fertilizer (RI) ───────────────────────────────────────────────────────
+
+export interface FaoFertilizer {
+  id: number;
+  year: number;
+  item: string;
+  item_code: string | null;
+  element: string | null;
+  element_code: string | null;
+  unit: string | null;
+  value: number;
+}
+
+export async function getFaoFertilizer(item?: string, element?: string, limit = 100, offset = 0): Promise<{ data: FaoFertilizer[]; total: number }> {
+  const params = new URLSearchParams();
+  if (item) params.set("item", item);
+  if (element) params.set("element", element);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  const res = await fetch(`${API_BASE}/api/v1/fao/fertilizer?${params}`, { cache: "no-store" });
+  if (!res.ok) return { data: [], total: 0 };
+  return res.json();
+}
+
+export async function getFaoFertilizerItems(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/v1/fao/fertilizer/items`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function triggerFaoFertilizerSync(): Promise<{ status: string; records_inserted: number; message: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/sync/fao/fertilizer`, { method: "POST" });
+  return res.json();
+}
+
+// ── FAO Land Use (RL) ─────────────────────────────────────────────────────────
+
+export interface FaoLandUse {
+  id: number;
+  year: number;
+  item: string;
+  item_code: string | null;
+  element: string | null;
+  element_code: string | null;
+  unit: string | null;
+  value: number;
+}
+
+export async function getFaoLandUse(item?: string, element?: string, limit = 100, offset = 0): Promise<{ data: FaoLandUse[]; total: number }> {
+  const params = new URLSearchParams();
+  if (item) params.set("item", item);
+  if (element) params.set("element", element);
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  const res = await fetch(`${API_BASE}/api/v1/fao/land-use?${params}`, { cache: "no-store" });
+  if (!res.ok) return { data: [], total: 0 };
+  return res.json();
+}
+
+export async function getFaoLandUseItems(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/v1/fao/land-use/items`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function triggerFaoLandUseSync(): Promise<{ status: string; records_inserted: number; message: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/sync/fao/land-use`, { method: "POST" });
+  return res.json();
+}
+
+// ── GSS Sub-national Crop Production ─────────────────────────────────────────
+
+export interface GssCropProduction {
+  id: number;
+  year: number;
+  region: string;
+  district: string;
+  crop: string;
+  element: string;
+  unit: string | null;
+  value: number | null;
+  source: string;
+}
+
+export async function getGssCropProduction(params: {
+  region?: string;
+  district?: string;
+  crop?: string;
+  element?: string;
+  year?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<{ data: GssCropProduction[]; total: number }> {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined) searchParams.set(k, String(v)); });
+  const res = await fetch(`${API_BASE}/api/v1/gss/crop-production?${searchParams}`, { cache: "no-store" });
+  if (!res.ok) return { data: [], total: 0 };
+  return res.json();
+}
+
+export async function getGssRegions(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/v1/gss/regions`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getGssDistricts(region?: string): Promise<string[]> {
+  const params = region ? `?region=${encodeURIComponent(region)}` : "";
+  const res = await fetch(`${API_BASE}/api/v1/gss/districts${params}`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getGssCrops(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/v1/gss/crops`, { cache: "no-store" });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export interface GssSyncProgress {
+  stage: "downloading" | "parsing" | "inserting" | "done" | "error";
+  pct: number;
+  done?: number;
+  total?: number;
+  records_inserted?: number;
+  records_skipped?: number;
+  message?: string;
+}
+
+export async function syncGssFromMofa(
+  onProgress: (event: GssSyncProgress) => void,
+): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/api/v1/gss/sync`, { method: "POST" });
+  if (!res.body) return { status: "error", message: "No response body" };
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult: { status: string; message: string } = { status: "error", message: "Unknown error" };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const event: GssSyncProgress = JSON.parse(line.slice(6));
+          onProgress(event);
+          if (event.stage === "done") {
+            finalResult = { status: "success", message: event.message ?? "Sync complete" };
+          } else if (event.stage === "error") {
+            finalResult = { status: "error", message: event.message ?? "Sync failed" };
+          }
+        } catch { /* ignore malformed lines */ }
+      }
+    }
+  }
+
+  return finalResult;
+}
+
+export async function uploadGssCsv(
+  file: File,
+  onProgress: (event: GssSyncProgress) => void,
+): Promise<{ status: string; message: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/api/v1/gss/upload`, { method: "POST", body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+    return { status: "error", message: err.detail ?? "Upload failed" };
+  }
+  if (!res.body) return { status: "error", message: "No response body" };
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult: { status: string; message: string } = { status: "error", message: "Unknown error" };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const event: GssSyncProgress = JSON.parse(line.slice(6));
+          onProgress(event);
+          if (event.stage === "done") {
+            finalResult = { status: "success", message: event.message ?? "Upload complete" };
+          } else if (event.stage === "error") {
+            finalResult = { status: "error", message: event.message ?? "Upload failed" };
+          }
+        } catch { /* ignore malformed lines */ }
+      }
+    }
+  }
+
+  return finalResult;
+}

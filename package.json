@@ -3,11 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "npm run dev --prefix frontend",
+    "dev": "docker compose up postgres -d --wait && concurrently --names \"backend,frontend\" --prefix-colors \"green,blue\" \"cd backend && uvicorn app.main:app --reload --port 8000\" \"npm run dev --prefix frontend\"",
     "build": "npm run build --prefix frontend",
     "install:frontend": "npm install --prefix frontend",
     "db:push": "npm run db:push --prefix frontend",
     "db:studio": "npm run db:studio --prefix frontend",
     "db:generate": "npm run db:generate --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
