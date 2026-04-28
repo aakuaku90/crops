@@ -24,5 +24,6 @@ Complete docs live in [`docs/`](./docs/):
 - **[docs/API.md](./docs/API.md)** — full endpoint reference
 - **[docs/FRONTEND.md](./docs/FRONTEND.md)** — route map and component catalog
 - **[docs/SCHEMA.md](./docs/SCHEMA.md)** — every Postgres table
+- **[docs/DEPLOY.md](./docs/DEPLOY.md)** — Heroku deployment runbook
 
 The Mermaid diagrams in those files render natively on GitHub.

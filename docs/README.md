@@ -59,6 +59,7 @@ crops/
 - **[API.md](./API.md)** — every `/api/v1/*` endpoint, request shape, response shape
 - **[FRONTEND.md](./FRONTEND.md)** — route map, page purposes, shared component catalog
 - **[SCHEMA.md](./SCHEMA.md)** — full table reference grouped by domain
+- **[DEPLOY.md](./DEPLOY.md)** — Heroku deployment runbook (two-app monorepo + Postgres)
 
 ## What this app is *for*
 

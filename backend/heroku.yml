@@ -1,0 +1,21 @@
+# Heroku container deploy manifest for the FastAPI backend.
+# Activate with: `heroku stack:set container -a <app>`
+#
+# Deploy via git subtree from the repo root:
+#   git subtree push --prefix backend heroku-api main
+#
+# `release` runs once per deploy; we use it to ensure the DB schema is up to
+# date before the new web dynos accept traffic. init_db() also runs in the
+# FastAPI lifespan, so this is belt-and-suspenders — but the release phase
+# fails fast if the DB is unreachable, which is what we want.
+build:
+  docker:
+    web: Dockerfile
+
+run:
+  web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+release:
+  command:
+    - python -c "import asyncio; from app.db.database import init_db, close_pool; asyncio.run(init_db()); asyncio.run(close_pool())"
+  image: web

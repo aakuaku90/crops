@@ -8,8 +8,15 @@ async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         settings = get_settings()
-        # asyncpg uses postgresql:// not postgresql+asyncpg://
+        # asyncpg accepts `postgres://` and `postgresql://` but not the
+        # SQLAlchemy `postgresql+asyncpg://` driver form. Heroku Postgres
+        # provides `postgres://...` so the second replace is a no-op there;
+        # local dev sets the `+asyncpg` form which we strip.
         dsn = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+        # Heroku-style URLs use `postgres://`; asyncpg also accepts it, but
+        # normalize for consistency with the rest of the ecosystem.
+        if dsn.startswith("postgres://"):
+            dsn = "postgresql://" + dsn[len("postgres://"):]
         _pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)
     return _pool
 

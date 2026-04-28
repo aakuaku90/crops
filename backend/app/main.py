@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import get_settings
 from app.db.database import init_db, close_pool, get_pool
 from app.api.v1.router import api_router
 from app.services.sync_service import sync_from_hdex
@@ -36,9 +37,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Local dev hosts are always allowed; FRONTEND_URL adds the production origin.
+# Comma-split lets us authorize multiple deployments (e.g. preview + main).
+_dev_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+]
+_extra_origins = [
+    o.strip()
+    for o in (get_settings().frontend_url or "").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000", "http://127.0.0.1:3001"],
+    allow_origins=[*_dev_origins, *_extra_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
