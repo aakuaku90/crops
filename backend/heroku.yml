@@ -16,6 +16,10 @@ run:
   web: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 release:
+  # The release dyno exits after this command, so we don't need to close the
+  # pool — the OS reaps the connections cleanly. Trying to close_pool() here
+  # under a separate asyncio.run() blows up because asyncpg's SSL transports
+  # were bound to the first loop, which gets closed before the second runs.
   command:
-    - python -c "import asyncio; from app.db.database import init_db, close_pool; asyncio.run(init_db()); asyncio.run(close_pool())"
+    - python -c "import asyncio; from app.db.database import init_db; asyncio.run(init_db())"
   image: web
