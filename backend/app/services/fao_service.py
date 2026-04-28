@@ -160,9 +160,8 @@ async def sync_fao_producer_prices() -> dict:
                     INSERT INTO fao_producer_prices
                         (start_date, end_date, item, element, year, value, unit, flag)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    ON CONFLICT (item, start_date) DO UPDATE
+                    ON CONFLICT (item, element, start_date) DO UPDATE
                         SET end_date = EXCLUDED.end_date,
-                            element  = EXCLUDED.element,
                             year     = EXCLUDED.year,
                             value    = EXCLUDED.value,
                             unit     = EXCLUDED.unit,
