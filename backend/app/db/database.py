@@ -102,7 +102,11 @@ CREATE TABLE IF NOT EXISTS fao_producer_prices (
     unit VARCHAR(50),
     flag VARCHAR(10),
     created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(item, start_date)
+    -- (item, start_date) alone collides — FAOSTAT returns three rows per
+    -- year/item: Producer Price (LCU/tonne), (USD/tonne), and PPI. Without
+    -- `element` in the key the upserts overwrite each other and only the
+    -- last-written element row survives.
+    UNIQUE(item, element, start_date)
 );
 
 CREATE INDEX IF NOT EXISTS idx_fao_cpi_start_date ON fao_cpi(start_date DESC);
@@ -453,6 +457,25 @@ ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS category VARCHAR(100);
 ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS usd_price DECIMAL(10,4);
 ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS latitude DECIMAL(9,6);
 ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS longitude DECIMAL(9,6);
+-- Replace fao_producer_prices unique key — the original (item, start_date)
+-- key collided across the three Element rows FAOSTAT returns per year, so
+-- only the last-written element survived per (item, year). Add `element`
+-- to disambiguate. Drop the old constraint if present, add the new one.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fao_producer_prices_item_start_date_key'
+    ) THEN
+        ALTER TABLE fao_producer_prices DROP CONSTRAINT fao_producer_prices_item_start_date_key;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fao_producer_prices_item_element_start_date_key'
+    ) THEN
+        ALTER TABLE fao_producer_prices ADD CONSTRAINT fao_producer_prices_item_element_start_date_key UNIQUE (item, element, start_date);
+    END IF;
+END $$;
 DO $$
 BEGIN
     IF EXISTS (
