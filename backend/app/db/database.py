@@ -476,6 +476,10 @@ BEGIN
         ALTER TABLE fao_producer_prices ADD CONSTRAINT fao_producer_prices_item_element_start_date_key UNIQUE (item, element, start_date);
     END IF;
 END $$;
+-- Pre-2007 Ghana LCU prices reach ~10M cedis/tonne (before the 1:10000
+-- redenomination). DECIMAL(10,4) overflowed; widen to NUMERIC for headroom.
+ALTER TABLE fao_producer_prices ALTER COLUMN value TYPE NUMERIC USING value::NUMERIC;
+ALTER TABLE fao_cpi ALTER COLUMN value TYPE NUMERIC USING value::NUMERIC;
 DO $$
 BEGIN
     IF EXISTS (
