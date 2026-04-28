@@ -5,7 +5,11 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# react-simple-maps@3.0.0 declares a React 18 peer ceiling but works fine with
+# React 19 (no API changes that affect us). Use legacy resolution so npm ci
+# doesn't refuse the install. Drop this once react-simple-maps publishes a
+# release with React 19 in its peer range.
+RUN npm ci --legacy-peer-deps
 
 # ── builder ──────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
