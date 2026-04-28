@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from typing import Optional
 import asyncpg
 from app.db.database import get_pool
+from app.services.fao_trade_classify import classify_trade_item, PROCESSED_KEYWORDS
 
 router = APIRouter()
 
@@ -364,11 +365,20 @@ async def get_fao_trade_items(pool: asyncpg.Pool = Depends(get_pool)):
 async def get_fao_trade(
     item: Optional[str] = Query(None),
     element: Optional[str] = Query(None),
+    category: Optional[str] = Query(None, description="Filter by 'raw' or 'processed'"),
     limit: int = Query(100, le=1000),
     offset: int = Query(0),
     pool: asyncpg.Pool = Depends(get_pool),
 ):
-    """Return FAO Trade records with pagination."""
+    """
+    Return FAO Trade records with pagination.
+
+    Each returned row is annotated with `category` ("raw" or "processed") so
+    the frontend can split or color-code without re-running the classifier.
+    The optional `?category=` filter narrows results to one side server-side
+    via a keyword-pattern check that mirrors the Python classifier in
+    services/fao_trade_classify.py.
+    """
     conditions = []
     params = []
     idx = 1
@@ -382,6 +392,14 @@ async def get_fao_trade(
         conditions.append(f"element ILIKE ${idx}")
         params.append(f"%{element}%")
         idx += 1
+
+    if category in ("raw", "processed"):
+        keyword_patterns = [f"%{k}%" for k in PROCESSED_KEYWORDS]
+        placeholders = ",".join(f"${idx + i}" for i in range(len(keyword_patterns)))
+        pattern_check = f"item ILIKE ANY(ARRAY[{placeholders}])"
+        conditions.append(pattern_check if category == "processed" else f"NOT ({pattern_check})")
+        params.extend(keyword_patterns)
+        idx += len(keyword_patterns)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = f"""
@@ -397,7 +415,8 @@ async def get_fao_trade(
         rows = await conn.fetch(sql, *params)
         total = await conn.fetchval(f"SELECT COUNT(*) FROM fao_trade {where}", *params[:-2])
 
-    return {"data": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+    annotated = [{**dict(r), "category": classify_trade_item(r["item"])} for r in rows]
+    return {"data": annotated, "total": total, "limit": limit, "offset": offset}
 
 
 # ── RI: Fertilizer Use ────────────────────────────────────────────────────────

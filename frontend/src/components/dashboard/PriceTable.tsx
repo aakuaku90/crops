@@ -77,10 +77,14 @@ export function PriceTable() {
   }, [hasMore, loading, offset, fetchMore]);
 
   return (
-    <Card>
+    <Card className="relative overflow-hidden" style={{ animationDelay: "80ms" }}>
+      <div className="absolute top-0 inset-x-0 h-0.5 bg-foreground/20" />
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+              Records
+            </div>
             <CardTitle>Price Records</CardTitle>
             <CardDescription>
               {prices.length.toLocaleString()} of {total.toLocaleString()} records

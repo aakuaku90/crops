@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     faostat_username: str = ""
     faostat_password: str = ""
     faostat_token: str = ""
+    # Anthropic API key for the chat panel. Get from console.anthropic.com.
+    # Without it the /chat endpoint returns 503.
+    anthropic_api_key: str = ""
 
     class Config:
         env_file = "../.env"

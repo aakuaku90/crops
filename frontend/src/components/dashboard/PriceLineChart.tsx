@@ -15,9 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPriceTimeseries, getCommodities, type TimeseriesPoint, type Commodity } from "@/lib/api";
+import { CHART_COLORS, CHART_GRID_STROKE } from "@/lib/design-tokens";
 import { format } from "date-fns";
-
-const COLORS = ["#16a34a", "#2563eb", "#dc2626", "#d97706", "#7c3aed", "#0891b2"];
 
 export function PriceLineChart() {
   const [commodities, setCommodities] = useState<Commodity[]>([]);
@@ -57,10 +56,14 @@ export function PriceLineChart() {
     .sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <Card>
+    <Card className="relative overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-0.5 bg-foreground" />
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+              Trends
+            </div>
             <CardTitle>Price Trends</CardTitle>
             <CardDescription>Monthly average price by market ({currency})</CardDescription>
           </div>
@@ -83,7 +86,7 @@ export function PriceLineChart() {
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={multiData} margin={{ top: 5, right: 20, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 11 }}
@@ -108,7 +111,7 @@ export function PriceLineChart() {
                   key={market}
                   type="monotone"
                   dataKey={market}
-                  stroke={COLORS[i % COLORS.length]}
+                  stroke={CHART_COLORS[i % CHART_COLORS.length]}
                   dot={false}
                   strokeWidth={2}
                   connectNulls

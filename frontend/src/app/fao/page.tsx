@@ -75,23 +75,24 @@ import {
   getFaoLandUseItems,
   triggerFaoLandUseSync,
 } from "@/lib/api";
+import { CHART_COLORS, CHART_GRID_STROKE, semantic, palette } from "@/lib/design-tokens";
 
 // ── Colour palette for the three CPI series ──────────────────────────────────
 const CPI_SERIES = [
   {
     key: "Consumer Prices, Food Indices (2015=100)",
     label: "Food Index",
-    color: "#16a34a",
+    color: CHART_COLORS[0],
   },
   {
     key: "Consumer Prices, General Indices (2015=100)",
     label: "General Index",
-    color: "#2563eb",
+    color: CHART_COLORS[3],
   },
   {
     key: "Food price inflation",
     label: "Food Inflation (%)",
-    color: "#dc2626",
+    color: CHART_COLORS[2],
   },
 ];
 
@@ -175,11 +176,11 @@ function SyncBtn({
     <button
       onClick={handleClick}
       disabled={loading}
-      className="inline-flex items-center gap-2 rounded-full bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-60 transition-colors"
+      className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background hover:bg-foreground/90 disabled:opacity-60 transition-colors"
     >
       {loading ? (
         <>
-          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-background border-t-transparent" />
           Syncing…
         </>
       ) : (
@@ -325,6 +326,7 @@ function FaoPageInner() {
   const [tradeItems, setTradeItems] = useState<string[]>([]);
   const [tradeSelectedItem, setTradeSelectedItem] = useState<string>("");
   const [tradeSelectedElement, setTradeSelectedElement] = useState<string>("");
+  const [tradeCategory, setTradeCategory] = useState<"" | "raw" | "processed">("");
   const [loadingTrade, setLoadingTrade] = useState(false);
 
   // ── Load CPI ──
@@ -459,13 +461,19 @@ function FaoPageInner() {
   // ── Load Trade (infinite scroll) ──
   const fetchMoreTrade = useCallback(async (currentOffset: number, reset = false) => {
     setLoadingTrade(true);
-    const result = await getFaoTrade(tradeSelectedItem || undefined, tradeSelectedElement || undefined, 100, currentOffset);
+    const result = await getFaoTrade(
+      tradeSelectedItem || undefined,
+      tradeSelectedElement || undefined,
+      100,
+      currentOffset,
+      tradeCategory || undefined,
+    );
     setTradeRecords(prev => reset ? result.data : [...prev, ...result.data]);
     setTradeTotal(result.total);
     setTradeOffset(currentOffset + result.data.length);
     setTradeHasMore(currentOffset + result.data.length < result.total);
     setLoadingTrade(false);
-  }, [tradeSelectedItem, tradeSelectedElement]);
+  }, [tradeSelectedItem, tradeSelectedElement, tradeCategory]);
 
   const loadTradeItems = useCallback(async () => {
     const data = await getFaoTradeItems();
@@ -599,7 +607,7 @@ function FaoPageInner() {
     }
   }, [sclSelectedItem, sclSelectedElement, fetchMoreScl]);
 
-  // ── Trade: reset + refetch when item/element changes ──
+  // ── Trade: reset + refetch when item/element/category changes ──
   useEffect(() => {
     if (loadedTabs.current.has("trade")) {
       setTradeRecords([]);
@@ -607,7 +615,7 @@ function FaoPageInner() {
       setTradeHasMore(true);
       fetchMoreTrade(0, true);
     }
-  }, [tradeSelectedItem, tradeSelectedElement, fetchMoreTrade]);
+  }, [tradeSelectedItem, tradeSelectedElement, tradeCategory, fetchMoreTrade]);
 
   // ── Infinite scroll observers ──
   useEffect(() => {
@@ -798,7 +806,7 @@ function FaoPageInner() {
 
   const dietItems = [...new Set(dietRecords.map((r) => r.item))];
 
-  const dietColors = ["#16a34a", "#2563eb", "#dc2626", "#d97706", "#7c3aed", "#0891b2"];
+  const dietColors = CHART_COLORS;
 
   // Value Production chart: by year for selected item+element
   const valueChartData = (() => {
@@ -883,9 +891,9 @@ function FaoPageInner() {
   // Population chart: total population by year, series per element
   const popSeries = ["Total Population - Both sexes", "Urban population", "Rural population"];
   const popColors: Record<string, string> = {
-    "Total Population - Both sexes": "#16a34a",
-    "Urban population": "#2563eb",
-    "Rural population": "#d97706",
+    "Total Population - Both sexes": semantic.population,
+    "Urban population": CHART_COLORS[3],
+    "Rural population": semantic.supply,
   };
   const popChartData = (() => {
     const byYear: Record<number, Record<string, number>> = {};
@@ -902,10 +910,10 @@ function FaoPageInner() {
   const tradeItemOptions = [{ value: "", label: "All items" }, ...tradeItems.map((i) => ({ value: i, label: i }))];
   const tradeElementOptions = [{ value: "", label: "All elements" }, ...TRADE_ELEMENTS.map((e) => ({ value: e, label: e }))];
   const TRADE_COLORS: Record<string, string> = {
-    "Import Quantity": "#2563eb",
-    "Export Quantity": "#16a34a",
-    "Import Value": "#7c3aed",
-    "Export Value": "#d97706",
+    "Import Quantity": semantic.imports,
+    "Export Quantity": semantic.exports,
+    "Import Value": CHART_COLORS[4],
+    "Export Value": semantic.supply,
   };
 
   // Fertilizer chart: by year, one series per item
@@ -944,12 +952,19 @@ function FaoPageInner() {
   const landSeries = [...new Set(landChartData.flatMap((d) => Object.keys(d).filter((k) => k !== "label")))];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* ── Page header ── */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-bold text-gray-900">FAO FAOSTAT</h2>
-          <span className="text-2xl font-normal text-gray-500">(Ghana Food Price Indicators)</span>
+      <div className="flex items-end justify-between gap-4 flex-wrap pb-4 border-b border-border">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            Dataset
+          </div>
+          <h1 className="text-2xl font-bold text-foreground leading-tight">
+            FAO Indicators
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Ghana national agricultural indicators from the FAO FAOSTAT API.
+          </p>
         </div>
 
         {tab === "cpi" && (
@@ -1094,15 +1109,15 @@ function FaoPageInner() {
 
       {/* ── Tabs ── */}
       <div className="overflow-x-auto scrollbar-hide">
-        <div className="flex gap-1 rounded-full bg-gray-100 p-1 min-w-max">
+        <div className="flex gap-1 rounded-full bg-muted p-1 min-w-max">
           {(["cpi", "producer", "food-security", "crop-production", "exchange-rates", "diet-cost", "value-production", "food-balances", "supply-utilization", "trade", "population", "fertilizer", "land-use"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => handleTabChange(t)}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors whitespace-nowrap ${
                 tab === t
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {TAB_LABELS[t]}
@@ -1125,13 +1140,13 @@ function FaoPageInner() {
               {loadingCpi ? (
                 <Skeleton className="h-72 w-full" />
               ) : cpiChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  No CPI data — click &quot;Sync CPI Data&quot; to load
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  No CPI data. Click &quot;Sync CPI Data&quot; to load
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={cpiChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={Math.floor(cpiChartData.length / 10)} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toFixed(2), name]} />
@@ -1156,8 +1171,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : cpiRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync CPI Data&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync CPI Data&quot; to load
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -1222,17 +1237,17 @@ function FaoPageInner() {
               {loadingProducer ? (
                 <Skeleton className="h-64 w-full" />
               ) : producerChartData.length === 0 ? (
-                <div className="flex h-64 items-center justify-center text-sm text-gray-400">
-                  {items.length === 0 ? 'No data — click "Sync Producer Prices" to load' : "No records for the selected commodity"}
+                <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+                  {items.length === 0 ? 'No data. Click "Sync Producer Prices" to load.' : "No records for the selected commodity"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={producerChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }), selectedItem]} />
-                    <Line type="monotone" dataKey="value" name={selectedItem} stroke="#16a34a" strokeWidth={2} dot={{ r: 4, fill: "#16a34a" }} connectNulls />
+                    <Line type="monotone" dataKey="value" name={selectedItem} stroke={palette.harvest[500]} strokeWidth={2} dot={{ r: 4, fill: palette.harvest[500] }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -1252,8 +1267,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : producerPrices.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  {items.length === 0 ? 'No data — click "Sync Producer Prices" to load' : "No records for the selected commodity"}
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  {items.length === 0 ? 'No data. Click "Sync Producer Prices" to load.' : "No records for the selected commodity"}
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -1313,26 +1328,26 @@ function FaoPageInner() {
             <CardHeader>
               <CardTitle className="text-base">Food Security Indicators Over Time</CardTitle>
               <CardDescription>
-                {fsSelectedItem ? fsSelectedItem : "Top indicators — use the filter above to focus on a specific indicator"}
+                {fsSelectedItem ? fsSelectedItem : "Top indicators. Use the filter above to focus on a specific indicator"}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loadingFs ? (
                 <Skeleton className="h-72 w-full" />
               ) : fsChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {fsRecords.length === 0 ? 'No data — click "Sync Food Security" to load' : "No chart series for current filter"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {fsRecords.length === 0 ? 'No data. Click "Sync Food Security" to load.' : "No chart series for current filter"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={fsChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={Math.max(0, Math.floor(fsChartData.length / 8) - 1)} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toFixed(2), name]} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     {[...new Set(fsChartData.flatMap((d) => Object.keys(d).filter((k) => k !== "label")))].map((key, i) => (
-                      <Line key={key} type="monotone" dataKey={key} name={key} stroke={["#16a34a", "#2563eb", "#dc2626", "#d97706"][i % 4]} dot={false} strokeWidth={2} connectNulls />
+                      <Line key={key} type="monotone" dataKey={key} name={key} stroke={CHART_COLORS[i % CHART_COLORS.length]} dot={false} strokeWidth={2} connectNulls />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
@@ -1351,8 +1366,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : fsRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Food Security&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Food Security&quot; to load
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -1417,7 +1432,7 @@ function FaoPageInner() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                {cropSelectedItem ? cropSelectedItem : "Crop & Livestock Production"}{cropSelectedElement ? ` — ${cropSelectedElement}` : ""}
+                {cropSelectedItem ? cropSelectedItem : "Crop & Livestock Production"}{cropSelectedElement ? `: ${cropSelectedElement}` : ""}
               </CardTitle>
               <CardDescription>Annual production data for Ghana (FAO QCL)</CardDescription>
             </CardHeader>
@@ -1425,13 +1440,13 @@ function FaoPageInner() {
               {loadingCrop ? (
                 <Skeleton className="h-72 w-full" />
               ) : cropChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {cropRecords.length === 0 ? 'No data — click "Sync Crop Production" to load' : "No records for the selected filters"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {cropRecords.length === 0 ? 'No data. Click "Sync Crop Production" to load.' : "No records for the selected filters"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={cropChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip
@@ -1441,7 +1456,7 @@ function FaoPageInner() {
                         cropSelectedElement || "Value",
                       ]}
                     />
-                    <Line type="monotone" dataKey="value" name={cropSelectedElement || "Value"} stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} connectNulls />
+                    <Line type="monotone" dataKey="value" name={cropSelectedElement || "Value"} stroke={palette.harvest[500]} strokeWidth={2} dot={{ r: 3, fill: palette.harvest[500] }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -1461,8 +1476,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : cropRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Crop Production&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Crop Production&quot; to load
                 </p>
               ) : (
                 <>
@@ -1502,7 +1517,7 @@ function FaoPageInner() {
                       )}
                     </>
                   ) : (
-                    <p className="pt-4 text-center text-xs text-gray-400">
+                    <p className="pt-4 text-center text-xs text-muted-foreground">
                       All {cropTotal.toLocaleString()} records loaded
                     </p>
                   )}
@@ -1519,26 +1534,26 @@ function FaoPageInner() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Annual Exchange Rate (GHS / USD)</CardTitle>
-              <CardDescription>Annual average official exchange rate — FAO PE dataset</CardDescription>
+              <CardDescription>Annual average official exchange rate. FAO PE dataset.</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingEx ? (
                 <Skeleton className="h-72 w-full" />
               ) : exAnnualData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {exRecords.length === 0 ? 'No data — click "Sync Exchange Rates" to load' : "No annual records found"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {exRecords.length === 0 ? 'No data. Click "Sync Exchange Rates" to load.' : "No annual records found"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={exAnnualData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip
                       contentStyle={{ fontSize: 12 }}
                       formatter={(value: number) => [Number(value).toFixed(4), "GHS/USD"]}
                     />
-                    <Line type="monotone" dataKey="value" name="GHS/USD" stroke="#2563eb" strokeWidth={2} dot={{ r: 4, fill: "#2563eb" }} connectNulls />
+                    <Line type="monotone" dataKey="value" name="GHS/USD" stroke={CHART_COLORS[3]} strokeWidth={2} dot={{ r: 4, fill: CHART_COLORS[3] }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -1556,8 +1571,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : exRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Exchange Rates&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Exchange Rates&quot; to load
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -1600,19 +1615,19 @@ function FaoPageInner() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Cost of a Healthy Diet Over Time</CardTitle>
-              <CardDescription>Annual cost indicators — FAO CAHD dataset</CardDescription>
+              <CardDescription>Annual cost indicators. FAO CAHD dataset.</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingDiet ? (
                 <Skeleton className="h-72 w-full" />
               ) : dietChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {dietRecords.length === 0 ? 'No data — click "Sync Healthy Diet Cost" to load' : "No data available"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {dietRecords.length === 0 ? 'No data. Click "Sync Healthy Diet Cost" to load.' : "No data available"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={dietChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toFixed(2), name]} />
@@ -1637,8 +1652,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : dietRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Healthy Diet Cost&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Healthy Diet Cost&quot; to load
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -1705,7 +1720,7 @@ function FaoPageInner() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                {valueSelectedItem ? valueSelectedItem : "Value of Agricultural Production"}{valueSelectedElement ? ` — ${valueSelectedElement}` : ""}
+                {valueSelectedItem ? valueSelectedItem : "Value of Agricultural Production"}{valueSelectedElement ? `: ${valueSelectedElement}` : ""}
               </CardTitle>
               <CardDescription>Annual value data for Ghana (FAO QV)</CardDescription>
             </CardHeader>
@@ -1713,13 +1728,13 @@ function FaoPageInner() {
               {loadingValue ? (
                 <Skeleton className="h-72 w-full" />
               ) : valueChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {valueRecords.length === 0 ? 'No data — click "Sync Value of Production" to load' : "No records for the selected filters"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {valueRecords.length === 0 ? 'No data. Click "Sync Value of Production" to load.' : "No records for the selected filters"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={valueChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip
@@ -1729,7 +1744,7 @@ function FaoPageInner() {
                         valueSelectedElement || "Value",
                       ]}
                     />
-                    <Line type="monotone" dataKey="value" name={valueSelectedElement || "Value"} stroke="#7c3aed" strokeWidth={2} dot={{ r: 3, fill: "#7c3aed" }} connectNulls />
+                    <Line type="monotone" dataKey="value" name={valueSelectedElement || "Value"} stroke={CHART_COLORS[4]} strokeWidth={2} dot={{ r: 3, fill: CHART_COLORS[4] }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -1749,8 +1764,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : valueRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Value of Production&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Value of Production&quot; to load
                 </p>
               ) : (
                 <>
@@ -1793,7 +1808,7 @@ function FaoPageInner() {
                       )}
                     </>
                   ) : (
-                    <p className="pt-4 text-center text-xs text-gray-400">
+                    <p className="pt-4 text-center text-xs text-muted-foreground">
                       All {valueTotal.toLocaleString()} records loaded
                     </p>
                   )}
@@ -1836,7 +1851,7 @@ function FaoPageInner() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                {foodBalSelectedItem ? foodBalSelectedItem : "Food Balances"}{foodBalSelectedElement ? ` — ${foodBalSelectedElement}` : ""}
+                {foodBalSelectedItem ? foodBalSelectedItem : "Food Balances"}{foodBalSelectedElement ? `: ${foodBalSelectedElement}` : ""}
               </CardTitle>
               <CardDescription>Annual food supply &amp; balance data for Ghana (FAO FBS)</CardDescription>
             </CardHeader>
@@ -1844,13 +1859,13 @@ function FaoPageInner() {
               {loadingFoodBal ? (
                 <Skeleton className="h-72 w-full" />
               ) : foodBalChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {foodBalRecords.length === 0 ? 'No data — click "Sync Food Balances" to load' : "No records for the selected filters"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {foodBalRecords.length === 0 ? 'No data. Click "Sync Food Balances" to load.' : "No records for the selected filters"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={foodBalChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip
@@ -1860,7 +1875,7 @@ function FaoPageInner() {
                         foodBalSelectedElement || "Value",
                       ]}
                     />
-                    <Line type="monotone" dataKey="value" name={foodBalSelectedElement || "Value"} stroke="#0891b2" strokeWidth={2} dot={{ r: 3, fill: "#0891b2" }} connectNulls />
+                    <Line type="monotone" dataKey="value" name={foodBalSelectedElement || "Value"} stroke={CHART_COLORS[5]} strokeWidth={2} dot={{ r: 3, fill: CHART_COLORS[5] }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -1880,8 +1895,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : foodBalRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Food Balances&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Food Balances&quot; to load
                 </p>
               ) : (
                 <>
@@ -1924,7 +1939,7 @@ function FaoPageInner() {
                       )}
                     </>
                   ) : (
-                    <p className="pt-4 text-center text-xs text-gray-400">
+                    <p className="pt-4 text-center text-xs text-muted-foreground">
                       All {foodBalTotal.toLocaleString()} records loaded
                     </p>
                   )}
@@ -1967,7 +1982,7 @@ function FaoPageInner() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">
-                {sclSelectedItem ? sclSelectedItem : "Supply Utilization Accounts"}{sclSelectedElement ? ` — ${sclSelectedElement}` : ""}
+                {sclSelectedItem ? sclSelectedItem : "Supply Utilization Accounts"}{sclSelectedElement ? `: ${sclSelectedElement}` : ""}
               </CardTitle>
               <CardDescription>
                 Annual food use, feed, processing, waste &amp; losses for Ghana (FAO SCL)
@@ -1977,13 +1992,13 @@ function FaoPageInner() {
               {loadingScl ? (
                 <Skeleton className="h-72 w-full" />
               ) : sclChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {sclRecords.length === 0 ? 'No data — click "Sync Supply Utilization" to load' : "No records for the selected filters"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {sclRecords.length === 0 ? 'No data. Click "Sync Supply Utilization" to load.' : "No records for the selected filters"}
                 </div>
               ) : sclSelectedElement ? (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={sclChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip
@@ -1993,13 +2008,13 @@ function FaoPageInner() {
                         sclSelectedElement,
                       ]}
                     />
-                    <Line type="monotone" dataKey="value" name={sclSelectedElement} stroke="#16a34a" strokeWidth={2} dot={{ r: 3, fill: "#16a34a" }} connectNulls />
+                    <Line type="monotone" dataKey="value" name={sclSelectedElement} stroke={palette.harvest[500]} strokeWidth={2} dot={{ r: 3, fill: palette.harvest[500] }} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={sclChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }), name]} />
@@ -2026,8 +2041,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : sclRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Supply Utilization&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Supply Utilization&quot; to load
                 </p>
               ) : (
                 <>
@@ -2076,7 +2091,7 @@ function FaoPageInner() {
                       )}
                     </>
                   ) : (
-                    <p className="pt-4 text-center text-xs text-gray-400">
+                    <p className="pt-4 text-center text-xs text-muted-foreground">
                       All {sclTotal.toLocaleString()} records loaded
                     </p>
                   )}
@@ -2091,55 +2106,55 @@ function FaoPageInner() {
       {sclSidebarRecord && (
         <>
           {/* panel */}
-          <div className="fixed right-0 top-0 z-50 h-screen w-80 bg-white shadow-xl flex flex-col !mt-0 border-l border-gray-200">
+          <div className="fixed right-0 top-0 z-50 h-screen w-80 bg-white shadow-xl flex flex-col !mt-0 border-l border-border">
             <div className="flex items-center justify-between border-b px-5 py-4">
-              <h3 className="font-semibold text-gray-900 text-sm">Record Details</h3>
+              <h3 className="font-semibold text-foreground text-sm">Record Details</h3>
               <button
                 onClick={() => setSclSidebarRecord(null)}
-                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 ✕
               </button>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 text-sm">
               <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Item</p>
-                <p className="text-gray-900">{sclSidebarRecord.item}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Item</p>
+                <p className="text-foreground">{sclSidebarRecord.item}</p>
               </div>
               {sclSidebarRecord.item_code && (
                 <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Item Code</p>
-                  <p className="text-gray-900 font-mono">{sclSidebarRecord.item_code}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Item Code</p>
+                  <p className="text-foreground font-mono">{sclSidebarRecord.item_code}</p>
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Year</p>
-                <p className="text-gray-900">{sclSidebarRecord.year}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Year</p>
+                <p className="text-foreground">{sclSidebarRecord.year}</p>
               </div>
               {sclSidebarRecord.element && (
                 <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Element</p>
-                  <p className="text-gray-900">{sclSidebarRecord.element}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Element</p>
+                  <p className="text-foreground">{sclSidebarRecord.element}</p>
                 </div>
               )}
               {sclSidebarRecord.element_code && (
                 <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Element Code</p>
-                  <p className="text-gray-900 font-mono">{sclSidebarRecord.element_code}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Element Code</p>
+                  <p className="text-foreground font-mono">{sclSidebarRecord.element_code}</p>
                 </div>
               )}
               {sclSidebarRecord.unit && (
                 <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Unit</p>
-                  <p className="text-gray-900">{scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit).unit}</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Unit</p>
+                  <p className="text-foreground">{scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit).unit}</p>
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Value</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Value</p>
+                <p className="text-2xl font-bold text-foreground">
                   {(() => { const s = scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit); return s.value.toLocaleString(undefined, { maximumFractionDigits: 2 }); })()}
                   {sclSidebarRecord.unit && (
-                    <span className="text-sm font-normal text-gray-400 ml-1">{scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit).unit}</span>
+                    <span className="text-sm font-normal text-muted-foreground ml-1">{scaleToTrueValue(sclSidebarRecord.value, sclSidebarRecord.unit).unit}</span>
                   )}
                 </p>
               </div>
@@ -2159,13 +2174,13 @@ function FaoPageInner() {
               {loadingPop ? (
                 <Skeleton className="h-72 w-full" />
               ) : popChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  No data — click &quot;Sync Population&quot; to load
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Population&quot; to load
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={popChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={Math.floor(popChartData.length / 8)} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatYAxis(v)} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number) => [Math.round(Number(value)).toLocaleString(), ""]} />
@@ -2190,8 +2205,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : popRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Population&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Population&quot; to load
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -2244,7 +2259,27 @@ function FaoPageInner() {
               placeholder="All elements"
               className="w-56"
             />
-            <span className="text-sm text-gray-400">{tradeTotal.toLocaleString()} records</span>
+            <div className="flex items-center rounded-full border border-border p-1 text-xs font-medium">
+              {([
+                { value: "", label: "All" },
+                { value: "raw", label: "Raw only" },
+                { value: "processed", label: "Processed only" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setTradeCategory(opt.value)}
+                  className={`rounded-full px-3 py-1 transition-colors ${
+                    tradeCategory === opt.value
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Splits raw commodities (e.g. cocoa beans) from processed derivatives (e.g. cocoa butter, flour, oil) so trade volumes can be compared like-for-like with domestic production."
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-sm text-muted-foreground">{tradeTotal.toLocaleString()} records</span>
           </div>
 
           <Card>
@@ -2256,13 +2291,13 @@ function FaoPageInner() {
               {loadingTrade && tradeChartData.length === 0 ? (
                 <Skeleton className="h-72 w-full" />
               ) : tradeChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  No data — click &quot;Sync Trade Flows&quot; to load
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Trade Flows&quot; to load
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={tradeChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 }), ""]} />
@@ -2286,8 +2321,8 @@ function FaoPageInner() {
                   {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
                 </div>
               ) : tradeRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">
-                  No data — click &quot;Sync Trade Flows&quot; to load
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No data. Click &quot;Sync Trade Flows&quot; to load
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -2319,7 +2354,7 @@ function FaoPageInner() {
                     </tbody>
                   </table>
                   <div ref={tradeSentinelRef} className="h-4" />
-                  {loadingTrade && <p className="py-2 text-center text-xs text-gray-400">Loading…</p>}
+                  {loadingTrade && <p className="py-2 text-center text-xs text-muted-foreground">Loading…</p>}
                 </div>
               )}
             </CardContent>
@@ -2343,20 +2378,20 @@ function FaoPageInner() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{fertSelectedItem || "Fertilizer Use"}{fertSelectedElement ? ` — ${fertSelectedElement}` : ""}</CardTitle>
+              <CardTitle className="text-base">{fertSelectedItem || "Fertilizer Use"}{fertSelectedElement ? `: ${fertSelectedElement}` : ""}</CardTitle>
               <CardDescription>Annual fertilizer application data for Ghana (FAO RI)</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingFert && fertChartData.length === 0 ? (
                 <Skeleton className="h-72 w-full" />
               ) : fertChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {fertRecords.length === 0 ? 'No data — click "Sync Fertilizer Use" to load' : "No records for the selected filters"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {fertRecords.length === 0 ? 'No data. Click "Sync Fertilizer Use" to load.' : "No records for the selected filters"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <BarChart data={fertChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }), name]} />
@@ -2379,7 +2414,7 @@ function FaoPageInner() {
               {loadingFert && fertRecords.length === 0 ? (
                 <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
               ) : fertRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">No data — click &quot;Sync Fertilizer Use&quot; to load</p>
+                <p className="py-8 text-center text-sm text-muted-foreground">No data. Click &quot;Sync Fertilizer Use&quot; to load</p>
               ) : (
                 <>
                   <div className="overflow-x-auto">
@@ -2412,7 +2447,7 @@ function FaoPageInner() {
                   {fertHasMore ? (
                     <><div ref={fertSentinelRef} className="h-4" />{loadingFert && <div className="space-y-2 pt-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>}</>
                   ) : (
-                    <p className="pt-4 text-center text-xs text-gray-400">All {fertTotal.toLocaleString()} records loaded</p>
+                    <p className="pt-4 text-center text-xs text-muted-foreground">All {fertTotal.toLocaleString()} records loaded</p>
                   )}
                 </>
               )}
@@ -2437,20 +2472,20 @@ function FaoPageInner() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{landSelectedItem || "Agricultural Land Use"}{landSelectedElement ? ` — ${landSelectedElement}` : ""}</CardTitle>
+              <CardTitle className="text-base">{landSelectedItem || "Agricultural Land Use"}{landSelectedElement ? `: ${landSelectedElement}` : ""}</CardTitle>
               <CardDescription>Annual land use data for Ghana (FAO RL)</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingLand && landChartData.length === 0 ? (
                 <Skeleton className="h-72 w-full" />
               ) : landChartData.length === 0 ? (
-                <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-                  {landRecords.length === 0 ? 'No data — click "Sync Land Use" to load' : "No records for the selected filters"}
+                <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+                  {landRecords.length === 0 ? 'No data. Click "Sync Land Use" to load.' : "No records for the selected filters"}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={320}>
                   <AreaChart data={landChartData} margin={{ top: 8, right: 24, left: -20, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                     <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }), name]} />
@@ -2473,7 +2508,7 @@ function FaoPageInner() {
               {loadingLand && landRecords.length === 0 ? (
                 <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
               ) : landRecords.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-400">No data — click &quot;Sync Land Use&quot; to load</p>
+                <p className="py-8 text-center text-sm text-muted-foreground">No data. Click &quot;Sync Land Use&quot; to load</p>
               ) : (
                 <>
                   <div className="overflow-x-auto">
@@ -2506,7 +2541,7 @@ function FaoPageInner() {
                   {landHasMore ? (
                     <><div ref={landSentinelRef} className="h-4" />{loadingLand && <div className="space-y-2 pt-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>}</>
                   ) : (
-                    <p className="pt-4 text-center text-xs text-gray-400">All {landTotal.toLocaleString()} records loaded</p>
+                    <p className="pt-4 text-center text-xs text-muted-foreground">All {landTotal.toLocaleString()} records loaded</p>
                   )}
                 </>
               )}

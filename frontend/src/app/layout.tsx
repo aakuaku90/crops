@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { StickyHeader } from "@/components/dashboard/StickyHeader";
+import { AppShell } from "@/components/dashboard/AppShell";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,15 +20,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-background text-foreground">
           <StickyHeader />
-          <main className="max-w-7xl mx-auto px-6 py-8 pt-16">{children}</main>
-          <footer className="border-t border-gray-200 mt-16 py-6 px-6">
-            <div className="max-w-7xl mx-auto text-center text-xs text-gray-400">
+          <AppShell>{children}</AppShell>
+          <footer className="border-t border-border mt-16 h-[66px] px-6 lg:pl-56 flex items-center">
+            <div className="max-w-[1600px] mx-auto text-center text-xs text-muted-foreground w-full">
               Data source: HDEX (WFP Food Prices) &amp; FAO FAOSTAT API &bull; Country: Ghana (GHA)
             </div>
           </footer>
         </div>
+        <Toaster position="bottom-right" richColors closeButton />
       </body>
     </html>
   );

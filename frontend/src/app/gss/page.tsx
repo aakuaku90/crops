@@ -24,6 +24,7 @@ import {
   uploadGssCsv,
   syncGssFromMofa,
 } from "@/lib/api";
+import { CHART_COLORS, CHART_GRID_STROKE } from "@/lib/design-tokens";
 
 function formatYAxis(value: number): string {
   if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
@@ -31,7 +32,7 @@ function formatYAxis(value: number): string {
   return String(value);
 }
 
-const COLORS = ["#16a34a", "#2563eb", "#dc2626", "#d97706", "#7c3aed", "#0891b2"];
+const COLORS = CHART_COLORS;
 const ELEMENTS = ["Area", "Production", "Yield"];
 
 export default function GssPage() {
@@ -199,31 +200,35 @@ export default function GssPage() {
   const yearOptions = [{ value: "", label: "All years" }, ...years.map(y => ({ value: y, label: y }))];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="space-y-3">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="space-y-4 pb-4 border-b border-border">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-2xl font-bold text-gray-900">GSS</h2>
-              <span className="text-2xl font-normal text-gray-500">(Ghana Statistical Service)</span>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+              Dataset
             </div>
-            <p className="mt-1 text-sm text-gray-500">Sub-national crop production estimates by region and district</p>
+            <h1 className="text-2xl font-bold text-foreground leading-tight">
+              GSS Sub-national Data
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sub-national crop production estimates by region and district, sourced from the Ghana Statistical Service.
+            </p>
           </div>
-          <div className="flex items-center rounded-full border border-gray-200 p-1 text-sm font-medium">
+          <div className="flex items-center rounded-full border border-border p-1 text-sm font-medium">
             <button
               onClick={() => { setUploadOpen(true); setUploadStatus("idle"); setUploadMsg(""); }}
-              className="rounded-full px-4 py-1 text-gray-600 hover:text-gray-900 transition-colors"
+              className="rounded-full px-4 py-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               Upload CSV
             </button>
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="rounded-full px-4 py-1 bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-60 transition-colors inline-flex items-center gap-2"
+              className="rounded-full px-4 py-1 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-60 transition-colors inline-flex items-center gap-2"
             >
               {syncing ? (
-                <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Syncing…</>
+                <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-background border-t-transparent" />Syncing…</>
               ) : (
                 "Sync from MoFA"
               )}
@@ -232,13 +237,13 @@ export default function GssPage() {
         </div>
         {syncing && !uploadOpen && (
           <div>
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
               <span>{syncStage}</span>
               <span>{syncPct}%</span>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
+            <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
               <div
-                className="h-full rounded-full bg-green-600 transition-all duration-300"
+                className="h-full rounded-full bg-foreground transition-all duration-300"
                 style={{ width: `${syncPct}%` }}
               />
             </div>
@@ -250,18 +255,18 @@ export default function GssPage() {
       {uploadOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setUploadOpen(false)} />
-          <div className="relative w-full max-w-lg rounded-2xl bg-white shadow-xl">
+          <div className="relative w-full max-w-lg rounded-2xl bg-card border border-border shadow-xl">
             <div className="flex items-center justify-between px-6 pt-5 pb-3">
               <div>
-                <h3 className="text-base font-semibold text-gray-900">Upload CSV Data</h3>
-                <p className="mt-0.5 text-xs text-gray-500">
+                <h3 className="text-base font-semibold text-foreground">Upload CSV Data</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   Required columns:{" "}
-                  <code className="bg-gray-100 px-1 rounded">
+                  <code className="bg-muted px-1 rounded text-foreground">
                     YEAR, REGION, DISTRICT, COMMODITY, AREA_CROPPED_Ha, AVERAGE_YIELD_Mt_per_Ha, PRODUCTION_Mt
                   </code>
                 </p>
               </div>
-              <button onClick={() => setUploadOpen(false)} className="ml-4 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+              <button onClick={() => setUploadOpen(false)} className="ml-4 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -269,7 +274,7 @@ export default function GssPage() {
             </div>
             <div className="px-6 pb-6">
               <div
-                className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center transition-colors hover:border-green-400 hover:bg-green-50 cursor-pointer"
+                className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-muted px-6 py-10 text-center transition-colors hover:border-foreground hover:bg-muted/70 cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -278,23 +283,23 @@ export default function GssPage() {
                   if (file) { handleFile(file); }
                 }}
               >
-                <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-foreground">
                   {syncing ? "Uploading…" : "Click or drag a CSV file here"}
                 </p>
-                {uploadStatus === "success" && <p className="text-xs text-green-600 font-medium">{uploadMsg}</p>}
-                {uploadStatus === "error" && <p className="text-xs text-red-600 font-medium">{uploadMsg}</p>}
+                {uploadStatus === "success" && <p className="text-xs text-foreground font-medium">{uploadMsg}</p>}
+                {uploadStatus === "error" && <p className="text-xs text-destructive font-medium">{uploadMsg}</p>}
               </div>
               {syncing && (
                 <div className="mt-3">
-                  <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
                     <span>{syncStage}</span>
                     <span>{syncPct}%</span>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
-                    <div className="h-full rounded-full bg-green-600 transition-all duration-300" style={{ width: `${syncPct}%` }} />
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full rounded-full bg-foreground transition-all duration-300" style={{ width: `${syncPct}%` }} />
                   </div>
                 </div>
               )}
@@ -318,13 +323,13 @@ export default function GssPage() {
         <SearchableSelect options={elementOptions} value={selectedElement} onValueChange={setSelectedElement} placeholder="All elements" className="w-40" />
         <SearchableSelect options={yearOptions} value={selectedYear} onValueChange={setSelectedYear} placeholder="All years" className="w-32" />
       </div>
-      <p className="text-sm text-gray-400">{total.toLocaleString()} records</p>
+      <p className="text-sm text-muted-foreground">{total.toLocaleString()} records</p>
 
       {/* Chart */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {selectedCrop || "Crop Production"}{selectedElement ? ` — ${selectedElement}` : ""}{selectedYear ? ` (${selectedYear})` : ""}
+            {selectedCrop || "Crop Production"}{selectedElement ? `: ${selectedElement}` : ""}{selectedYear ? ` (${selectedYear})` : ""}
           </CardTitle>
           <CardDescription>
             By {selectedRegion ? "district" : "region"}{selectedCrop ? "" : " · top 5 crops shown"}
@@ -334,13 +339,13 @@ export default function GssPage() {
           {loading && chartData.length === 0 ? (
             <Skeleton className="h-72 w-full" />
           ) : chartData.length === 0 ? (
-            <div className="flex h-72 items-center justify-center text-sm text-gray-400">
-              No data — upload a CSV to get started
+            <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
+              No data. Upload a CSV to get started.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
               <BarChart data={chartData} margin={{ top: 8, right: 24, left: -20, bottom: 50 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-35} textAnchor="end" interval={0} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={formatYAxis} />
                 <Tooltip contentStyle={{ fontSize: 12 }} formatter={(value: number, name: string) => [Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 }), name]} />
@@ -364,7 +369,7 @@ export default function GssPage() {
           {loading && records.length === 0 ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
           ) : records.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">No data — upload a CSV to get started</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No data. Upload a CSV to get started.</p>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -398,9 +403,9 @@ export default function GssPage() {
                 </table>
               </div>
               {hasMore ? (
-                <><div ref={sentinelRef} className="h-4" />{loading && <p className="py-2 text-center text-xs text-gray-400">Loading…</p>}</>
+                <><div ref={sentinelRef} className="h-4" />{loading && <p className="py-2 text-center text-xs text-muted-foreground">Loading…</p>}</>
               ) : (
-                <p className="pt-4 text-center text-xs text-gray-400">All {total.toLocaleString()} records loaded</p>
+                <p className="pt-4 text-center text-xs text-muted-foreground">All {total.toLocaleString()} records loaded</p>
               )}
             </>
           )}

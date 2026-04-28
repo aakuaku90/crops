@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 interface Option {
   value: string;
   label: string;
+  /** Show option but disable selection. Use for "coming soon" choices. */
+  disabled?: boolean;
 }
 
 interface SearchableSelectProps {
@@ -15,6 +17,7 @@ interface SearchableSelectProps {
   onValueChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  triggerClassName?: string;
 }
 
 export function SearchableSelect({
@@ -23,6 +26,7 @@ export function SearchableSelect({
   onValueChange,
   placeholder = "Select...",
   className,
+  triggerClassName,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -57,7 +61,10 @@ export function SearchableSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className={cn(
+          "flex h-10 w-full items-center justify-between rounded-full border border-input bg-background px-4 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          triggerClassName,
+        )}
       >
         <span className={cn("truncate", !selected && "text-muted-foreground")}>
           {selected ? selected.label : placeholder}
@@ -66,7 +73,7 @@ export function SearchableSelect({
       </button>
 
       {open && (
-        <div className="absolute left-0 z-50 mt-1 w-full min-w-[12rem] rounded-md border bg-white shadow-lg">
+        <div className="absolute left-0 z-50 mt-1 w-full min-w-[12rem] rounded-2xl border bg-white shadow-lg">
           {/* Search input */}
           <div className="flex items-center border-b px-3 py-2 gap-2">
             <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -88,16 +95,24 @@ export function SearchableSelect({
                 <button
                   key={option.value}
                   type="button"
+                  disabled={option.disabled}
                   onClick={() => {
+                    if (option.disabled) return;
                     onValueChange(option.value);
                     setOpen(false);
                   }}
                   className={cn(
-                    "flex w-full cursor-default items-center rounded-sm py-1.5 px-3 text-sm text-left hover:bg-gray-100",
-                    value === option.value && "bg-primary/10 text-primary font-medium"
+                    "flex w-full cursor-default items-center justify-between rounded-sm py-1.5 px-3 text-sm text-left hover:bg-muted",
+                    value === option.value && "bg-foreground text-background font-medium",
+                    option.disabled && "text-muted-foreground hover:bg-transparent cursor-not-allowed",
                   )}
                 >
-                  {option.label}
+                  <span>{option.label}</span>
+                  {option.disabled && (
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Soon
+                    </span>
+                  )}
                 </button>
               ))
             )}

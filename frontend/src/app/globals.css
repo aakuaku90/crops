@@ -12,49 +12,101 @@
   }
 }
 
+/*
+ * Ghana Food Prices palette — see lib/design-tokens.ts for hex equivalents.
+ * Values are HSL (no hsl() wrapper) so Tailwind's `hsl(var(--x))` opacity
+ * modifiers work (e.g. bg-primary/50).
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Surface — warm off-white instead of pure #fff */
+    --background: 40 22% 97%;
+    --foreground: 30 18% 14%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 30 18% 14%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 142.1 76.2% 36.3%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 142.1 76.2% 36.3%;
-    --radius: 0.5rem;
+    --popover-foreground: 30 18% 14%;
+
+    /* Brand — harvest green #2F7D3B */
+    --primary: 129 45% 34%;
+    --primary-foreground: 40 30% 98%;
+
+    /* Muted neutrals — warm-tinted */
+    --secondary: 36 18% 93%;
+    --secondary-foreground: 30 18% 18%;
+
+    --muted: 36 18% 93%;
+    --muted-foreground: 30 12% 38%;
+
+    /* Accent — warm grain amber #E8A33D */
+    --accent: 38 80% 57%;
+    --accent-foreground: 30 30% 12%;
+
+    /* Destructive — terracotta #C4533A */
+    --destructive: 11 55% 50%;
+    --destructive-foreground: 40 30% 98%;
+
+    --border: 36 18% 87%;
+    --input: 36 18% 87%;
+    --ring: 129 45% 34%;
+
+    --radius: 0.625rem;
+
+    /* Categorical chart palette — mirrors CHART_COLORS in design-tokens.ts */
+    --chart-1: 129 45% 34%;  /* harvest 500 */
+    --chart-2: 38 80% 57%;   /* grain 400 */
+    --chart-3: 11 55% 50%;   /* terracotta 400 */
+    --chart-4: 205 40% 40%;  /* dusty blue */
+    --chart-5: 269 30% 50%;  /* muted plum */
+    --chart-6: 144 30% 35%;  /* deep sage */
+
+    /* Semantic */
+    --success: 144 28% 57%;  /* sage 300 */
+    --warning: 38 80% 57%;
+    --danger: 11 55% 50%;
   }
+
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 142.1 70.6% 45.3%;
-    --primary-foreground: 144.9 80.4% 10%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 142.4 71.8% 29.2%;
+    --background: 30 14% 8%;
+    --foreground: 40 22% 95%;
+
+    --card: 30 14% 11%;
+    --card-foreground: 40 22% 95%;
+
+    --popover: 30 14% 11%;
+    --popover-foreground: 40 22% 95%;
+
+    --primary: 129 40% 50%;
+    --primary-foreground: 30 14% 8%;
+
+    --secondary: 30 10% 18%;
+    --secondary-foreground: 40 22% 95%;
+
+    --muted: 30 10% 18%;
+    --muted-foreground: 36 14% 65%;
+
+    --accent: 38 75% 60%;
+    --accent-foreground: 30 14% 8%;
+
+    --destructive: 11 50% 55%;
+    --destructive-foreground: 40 22% 95%;
+
+    --border: 30 10% 22%;
+    --input: 30 10% 22%;
+    --ring: 129 40% 50%;
+
+    --chart-1: 129 40% 50%;
+    --chart-2: 38 75% 60%;
+    --chart-3: 11 50% 55%;
+    --chart-4: 205 35% 55%;
+    --chart-5: 269 28% 62%;
+    --chart-6: 144 28% 50%;
+
+    --success: 144 28% 60%;
+    --warning: 38 75% 60%;
+    --danger: 11 50% 55%;
   }
 }
 
@@ -66,5 +118,7 @@
   body {
     @apply bg-background text-foreground;
     overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }

@@ -74,38 +74,98 @@ async def get_prices(
 
 @router.get("/summary")
 async def get_price_summary(pool: asyncpg.Pool = Depends(get_pool)):
-    """Latest price summary per commodity."""
+    """
+    Latest price summary per commodity.
+
+    The raw `food_prices` table mixes units (KG, 100KG sack, L, head, etc.) and
+    markets within the same commodity, so naïve AVG/MIN/MAX produces nonsense
+    (e.g. Cassava min=0.7, max=4718). This query:
+
+      1. Picks the dominant unit per commodity (the most-reported one).
+      2. Averages across markets per month within that unit, smoothing out
+         single-market outliers.
+      3. Computes latest / prev / stats from those monthly averages.
+
+    Result: comparable, clean numbers suitable for charts and ranking.
+    """
     sql = """
-        WITH latest AS (
-            SELECT DISTINCT ON (commodity_name)
-                commodity_name, price, unit, currency, date, region
-            FROM food_prices
-            ORDER BY commodity_name, date DESC
+        WITH commodity_unit AS (
+            SELECT commodity_name, unit
+            FROM (
+                SELECT commodity_name, unit,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY commodity_name
+                           ORDER BY COUNT(*) DESC, unit
+                       ) AS rn
+                FROM food_prices
+                WHERE unit IS NOT NULL AND unit != ''
+                GROUP BY commodity_name, unit
+            ) t
+            WHERE rn = 1
         ),
-        prev AS (
-            SELECT DISTINCT ON (commodity_name)
-                commodity_name, price AS prev_price
-            FROM food_prices
-            WHERE date < (SELECT MAX(date) - INTERVAL '30 days' FROM food_prices)
-            ORDER BY commodity_name, date DESC
+        monthly AS (
+            -- One row per (commodity, month) within the canonical unit:
+            -- the mean price across markets that month. Months with fewer
+            -- than 2 reporting markets are dropped — they're noise, not signal.
+            SELECT fp.commodity_name,
+                   date_trunc('month', fp.date)::date AS month,
+                   cu.unit,
+                   MAX(fp.currency) AS currency,
+                   AVG(fp.price) AS avg_price,
+                   COUNT(DISTINCT fp.market_name) AS market_count
+            FROM food_prices fp
+            JOIN commodity_unit cu USING (commodity_name)
+            WHERE fp.unit = cu.unit AND fp.price > 0
+            GROUP BY fp.commodity_name, date_trunc('month', fp.date), cu.unit
+            HAVING COUNT(DISTINCT fp.market_name) >= 2
+        ),
+        ranked AS (
+            SELECT *,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY commodity_name ORDER BY month DESC
+                   ) AS month_rank
+            FROM monthly
+        ),
+        latest AS (
+            SELECT commodity_name, avg_price AS latest_price,
+                   unit, currency, month AS latest_date
+            FROM ranked
+            WHERE month_rank = 1
+        ),
+        baseline AS (
+            -- Trailing 3-month average ending one month before latest.
+            -- Smooths out market-mix swings when comparing the "change".
+            SELECT commodity_name, AVG(avg_price) AS prev_price
+            FROM ranked
+            WHERE month_rank BETWEEN 2 AND 4
+            GROUP BY commodity_name
         ),
         stats AS (
+            -- Recent context: last 36 months only, so min/max/avg reflect
+            -- today's market regime, not the 2006-era base prices.
             SELECT commodity_name,
-                AVG(price) as avg_price,
-                MIN(price) as min_price,
-                MAX(price) as max_price
-            FROM food_prices
+                   AVG(avg_price) AS avg_price,
+                   MIN(avg_price) AS min_price,
+                   MAX(avg_price) AS max_price
+            FROM ranked
+            WHERE month_rank <= 36
             GROUP BY commodity_name
         )
-        SELECT l.commodity_name, l.price as latest_price, l.unit, l.currency, l.date as latest_date,
-               s.avg_price, s.min_price, s.max_price,
-               CASE WHEN p.prev_price > 0
-                    THEN ROUND(((l.price - p.prev_price) / p.prev_price * 100)::numeric, 2)
+        SELECT l.commodity_name,
+               l.latest_price,
+               l.unit,
+               l.currency,
+               l.latest_date,
+               s.avg_price,
+               s.min_price,
+               s.max_price,
+               CASE WHEN b.prev_price > 0
+                    THEN ROUND(((l.latest_price - b.prev_price) / b.prev_price * 100)::numeric, 2)
                     ELSE NULL
-               END as price_change_pct
+               END AS price_change_pct
         FROM latest l
-        LEFT JOIN prev p ON l.commodity_name = p.commodity_name
-        LEFT JOIN stats s ON l.commodity_name = s.commodity_name
+        LEFT JOIN baseline b USING (commodity_name)
+        LEFT JOIN stats    s USING (commodity_name)
         ORDER BY l.commodity_name
     """
     async with pool.acquire() as conn:

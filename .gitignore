@@ -26,3 +26,17 @@ Thumbs.db
 
 # Drizzle
 drizzle/meta/
+
+# Mapping (large geospatial files, rasters, ground truth)
+mapping/data/
+mapping/outputs/
+mapping/.env
+*.tif
+*.tiff
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+.ipynb_checkpoints/

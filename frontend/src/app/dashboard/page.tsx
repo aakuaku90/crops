@@ -6,22 +6,24 @@ import { SyncButton } from "@/components/dashboard/SyncButton";
 
 export default function DashboardPage() {
   return (
-    <div className="space-y-8">
-      {/* Header row */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="space-y-6 animate-fade-in">
+      {/* Page header */}
+      <div className="flex items-end justify-between flex-wrap gap-4 pb-4 border-b border-border">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold text-gray-900">WFP</h2>
-            <span className="text-2xl font-normal text-gray-500">(WFP Food Prices dataset)</span>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            Dataset
           </div>
+          <h1 className="text-2xl font-bold text-foreground leading-tight">
+            WFP Food Prices
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Market-level commodity prices across Ghana, sourced from the WFP Food Prices dataset.
+          </p>
         </div>
         <SyncButton />
       </div>
 
-      {/* Chart */}
       <PriceLineChart />
-
-      {/* Table */}
       <PriceTable />
     </div>
   );
