@@ -198,8 +198,19 @@ export default function ForecastOutlookPage() {
     // two series share a y-axis on the supply/demand chart and the surplus
     // ratio in Tile 2 isn't off by 1000×.
     const KT_TO_T = 1000;
+    // The food-balances API returns every item matching ILIKE "Maize" — that
+    // includes "Maize and products" (the primary balance) AND derivatives
+    // like "Maize Germ Oil". Without filtering, the byYear map overwrites the
+    // primary item's Food (e.g. 961 kt) with the derivative's Food (often 0)
+    // because of last-write-wins. Restrict to the "<crop> and products" item
+    // — same approach used by CropBalanceChart on the home page.
+    const cropLc = CROP.toLowerCase();
+    const primary = fbData.filter(
+      (r) => (r.item ?? "").toLowerCase() === `${cropLc} and products`,
+    );
+    const fbRows = primary.length > 0 ? primary : fbData;
     const byYear: Record<number, { production: number; demand: number; food: number }> = {};
-    for (const r of fbData) {
+    for (const r of fbRows) {
       const el = (r.element ?? "").toLowerCase();
       if (!byYear[r.year]) byYear[r.year] = { production: 0, demand: 0, food: 0 };
       if (el === "production") byYear[r.year].production = r.value * KT_TO_T;
