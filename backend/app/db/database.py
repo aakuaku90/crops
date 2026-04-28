@@ -55,12 +55,17 @@ CREATE TABLE IF NOT EXISTS food_prices (
     commodity_name VARCHAR(255),
     market_name VARCHAR(255),
     region VARCHAR(100),
+    admin2 VARCHAR(100),
+    category VARCHAR(100),
     date DATE NOT NULL,
     price DECIMAL(10,2) NOT NULL,
+    usd_price DECIMAL(10,4),
     unit VARCHAR(50),
     currency VARCHAR(10) DEFAULT 'GHS',
     price_type VARCHAR(50),
-    price_flag VARCHAR(10),
+    price_flag VARCHAR(50),
+    latitude DECIMAL(9,6),
+    longitude DECIMAL(9,6),
     source VARCHAR(50) DEFAULT 'wfp',
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(commodity_name, market_name, date, price_type)
@@ -441,6 +446,13 @@ ALTER TABLE gss_crop_production ALTER COLUMN value DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_gss_crop_district ON gss_crop_production(district);
 -- WFP sometimes returns compound flags like 'actual,aggregate' that exceed 10 chars.
 ALTER TABLE food_prices ALTER COLUMN price_flag TYPE VARCHAR(50);
+-- HDEX-source columns added after the original schema. Idempotent ALTERs so
+-- both fresh deploys and existing DBs converge on the same shape.
+ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS admin2 VARCHAR(100);
+ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS usd_price DECIMAL(10,4);
+ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS latitude DECIMAL(9,6);
+ALTER TABLE food_prices ADD COLUMN IF NOT EXISTS longitude DECIMAL(9,6);
 DO $$
 BEGIN
     IF EXISTS (
