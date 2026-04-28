@@ -58,13 +58,9 @@ heroku config:set FAOSTAT_USERNAME=... FAOSTAT_PASSWORD=... -a crops-api
 
 ### Web app (`crops-web`)
 
-```bash
-# Bake the API URL into the JS bundle. The Dockerfile picks it up as a
-# build arg via heroku.yml's `build.config` block.
-heroku config:set NEXT_PUBLIC_API_URL=https://crops-api.herokuapp.com -a crops-web
-```
+The frontend's API URL is **hardcoded in `frontend/heroku.yml`** under `build.config.NEXT_PUBLIC_API_URL` because Heroku does not interpolate `$VAR` references in that block — values are passed verbatim to `docker build`. To rotate the URL, edit `frontend/heroku.yml` and redeploy.
 
-> **Important**: `NEXT_PUBLIC_API_URL` is a *build-time* variable — changing it requires a redeploy of the web app, not just a config change.
+> **Build-time vs runtime**: `NEXT_PUBLIC_*` is baked into the bundle at build time. Changing it always requires a frontend redeploy, not just a config change.
 
 ## Step 4 — Add Heroku as git remotes
 

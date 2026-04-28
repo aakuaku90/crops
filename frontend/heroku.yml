@@ -1,12 +1,11 @@
 # Heroku container deploy manifest for the Next.js frontend.
 # Activate with: `heroku stack:set container -a <app>`
 #
-# IMPORTANT: NEXT_PUBLIC_API_URL is baked into the JS bundle at build time, so
-# it must be passed as a Docker build arg here. The bundle then hits that URL
-# from the user's browser. Set it on the app once with:
-#   heroku config:set NEXT_PUBLIC_API_URL=https://crops-api.herokuapp.com -a crops-web
-# That config var is automatically forwarded to `docker build` because we
-# reference it in `build.config` below.
+# IMPORTANT: NEXT_PUBLIC_API_URL is baked into the JS bundle at build time —
+# Heroku passes the LITERAL string under `build.config` to `docker build` as
+# a build arg (no $VAR substitution from app config). So this value must be
+# the actual URL, not a `$VAR` reference. To rotate the URL, edit this file
+# and redeploy.
 #
 # Deploy via git subtree from the repo root:
 #   git subtree push --prefix frontend heroku-web main
@@ -14,7 +13,7 @@ build:
   docker:
     web: Dockerfile
   config:
-    NEXT_PUBLIC_API_URL: $NEXT_PUBLIC_API_URL
+    NEXT_PUBLIC_API_URL: https://crops-api-5516cdc49cbf.herokuapp.com
 
 run:
   web: node server.js
