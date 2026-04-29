@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { ChatPanel } from "@/components/dashboard/ChatPanel";
+import { PageSkeleton } from "@/components/dashboard/PageSkeleton";
 import { RegionalMap } from "@/components/dashboard/RegionalMap";
 import { CHART_GRID_STROKE, palette, semantic } from "@/lib/design-tokens";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -117,6 +118,10 @@ export default function ForecastOutlookPage() {
   // conversation to {crop, region} so the user can drill into local context.
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  // Drives the initial-load skeleton. Flips to true once `refreshAll()`
+  // resolves the first time. Sync-button refreshes don't reset it — we
+  // don't want the skeleton flashing every time the user re-syncs.
+  const [loaded, setLoaded] = useState(false);
   // One-shot prompt to auto-send when the panel opens — set by buttons that
   // launch a specific question (e.g. "fetch current prices via web search").
   // ChatPanel dedupes by string, so we don't have to clear this back to null.
@@ -233,7 +238,7 @@ export default function ForecastOutlookPage() {
   }
 
   useEffect(() => {
-    refreshAll();
+    refreshAll().finally(() => setLoaded(true));
   }, []);
 
   async function handleSync() {
@@ -461,6 +466,10 @@ export default function ForecastOutlookPage() {
   const projPriceMessage = priceSummary?.avg_pred_horizon_ghs != null
     ? `${formatTonnes(priceSummary.avg_pred_horizon_ghs)} GH₵ / 100KG`
     : "—";
+
+  if (!loaded) {
+    return <PageSkeleton />;
+  }
 
   return (
     <>

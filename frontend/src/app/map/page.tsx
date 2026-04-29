@@ -13,6 +13,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ChatPanel } from "@/components/dashboard/ChatPanel";
+import { PageSkeleton } from "@/components/dashboard/PageSkeleton";
 import { RegionalMap } from "@/components/dashboard/RegionalMap";
 import { CHART_GRID_STROKE, semantic } from "@/lib/design-tokens";
 import { getTrackerCrops, getFaoFoodBalances, getGssCropProduction, getPriceSummary } from "@/lib/api";
@@ -49,9 +50,14 @@ export default function LandingPage() {
   // region so users can drill into local context — same UX as /forecast.
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  // Drives the initial-load skeleton; flips when the tracker-crops list
+  // (the cheapest fetch and a precondition for the crop selector) resolves.
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    getTrackerCrops().then(setCrops);
+    getTrackerCrops()
+      .then(setCrops)
+      .finally(() => setLoaded(true));
   }, []);
 
   // Mirror selection back to URL.
@@ -156,6 +162,10 @@ export default function LandingPage() {
       : "Off-season",
     );
   }, []);
+
+  if (!loaded) {
+    return <PageSkeleton />;
+  }
 
   return (
     <>

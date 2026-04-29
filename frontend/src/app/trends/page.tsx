@@ -6,6 +6,7 @@ import { ArrowUpRight, ArrowDownRight, ArrowRight, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { CropBalanceChart } from "@/components/dashboard/CropBalanceChart";
 import { ChatPanel } from "@/components/dashboard/ChatPanel";
+import { PageSkeleton } from "@/components/dashboard/PageSkeleton";
 import { semantic, palette } from "@/lib/design-tokens";
 import {
   getPriceSummary,
@@ -99,9 +100,14 @@ export default function SignalsPage() {
     setChatOpen(true);
   };
 
+  // Drives the initial-load skeleton; flips when the headline fetch resolves.
+  const [loaded, setLoaded] = useState(false);
+
   // ── Fetch: WFP price summary ──
   useEffect(() => {
-    getPriceSummary().then(setSummaries);
+    getPriceSummary()
+      .then(setSummaries)
+      .finally(() => setLoaded(true));
   }, []);
 
   // ── Fetch: Healthy diet cost ──
@@ -684,6 +690,10 @@ export default function SignalsPage() {
     .slice()
     .sort((a, b) => Math.abs(b.price_change_pct ?? 0) - Math.abs(a.price_change_pct ?? 0))[0];
   const worstShortage = shortages[0];
+
+  if (!loaded) {
+    return <PageSkeleton />;
+  }
 
   return (
     <>

@@ -54,6 +54,7 @@ crops/
 ## Documentation index
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** — system diagram, request lifecycle, data lineage, deployment topology
+- **[CHAT-INTERFACE.md](./CHAT-INTERFACE.md)** — chat panel: agentic tool use, Q&A grouping, step trail, retry/error flows
 - **[DATA-SOURCES.md](./DATA-SOURCES.md)** — every external feed, ingestion path, freshness, table targets
 - **[ML-PIPELINES.md](./ML-PIPELINES.md)** — TabPFN, LightGBM, rolling-mean baseline, Prophet — training, backtest, output schemas
 - **[API.md](./API.md)** — every `/api/v1/*` endpoint, request shape, response shape

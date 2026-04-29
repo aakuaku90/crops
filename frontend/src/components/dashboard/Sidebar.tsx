@@ -78,22 +78,26 @@ export function Sidebar() {
 
   return (
     <aside className="hidden lg:flex flex-col fixed top-0 left-0 z-40 h-screen w-64 border-r border-border bg-card/40">
-      <div className="flex flex-col h-full px-4 pt-4 bg-card/40 backdrop-blur">
+      <div className="flex flex-col h-full bg-card/40 backdrop-blur">
+        {/* Logo header — matches StickyHeader's py-2.5 + border-b so the
+            sidebar's top edge and the app header land on the same horizontal
+            baseline. Full-bleed (no horizontal padding from wrapper) so the
+            border-b spans the entire sidebar width. px-6 mirrors the app
+            header's content padding. */}
         <Link
           href="/"
-          className="flex items-center gap-1 text-2xl font-bold tracking-tight text-foreground hover:opacity-70 transition-opacity leading-none px-2 mb-5"
+          className="flex items-center gap-1 text-2xl font-bold tracking-tight text-foreground hover:opacity-70 transition-opacity leading-none px-6 py-2.5 border-b border-border"
         >
           <LogoMark className="w-7 h-7 text-foreground" />
           <span className="leading-none">CROPS</span>
         </Link>
 
-        {/* `overflow-y-auto` so the nav scrolls inside the sidebar on short
-            viewports instead of pushing SystemStatus off the bottom. The
-            scrollbar-thin utility (tailwindcss-animate ships it) keeps the
-            track unobtrusive when it does appear. -mx-4 + px-4 lets the
-            scrollbar sit flush with the sidebar edge. pb-4 adds breathing
-            room so the last nav item doesn't kiss the SystemStatus border. */}
-        <div className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4 pb-4 [scrollbar-width:thin]">
+        {/* Scrollable nav region. `overflow-y-auto` so the nav scrolls inside
+            the sidebar on short viewports instead of pushing SystemStatus off
+            the bottom. px-4 indents nav items; pt-5 restores breathing room
+            after the divider; pb-4 keeps the last item from kissing the
+            SystemStatus border. */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-5 pb-4 [scrollbar-width:thin]">
           {isLanding ? (
             <nav>
               <ul className="space-y-1">
@@ -161,7 +165,7 @@ function SystemStatus() {
   // reads as one continuous horizontal band.
   // Fixed h-[66px] matches the page footer so both bottom strips align.
   return (
-    <div className="border-t border-border h-[66px] -mx-4 px-4 flex flex-col justify-center">
+    <div className="border-t border-border h-[66px] px-6 flex flex-col justify-center">
       <div className="flex items-center gap-1.5 mb-0.5">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse shrink-0" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground leading-tight">
