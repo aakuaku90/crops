@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { Card } from "@/components/ui/card";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ChatPanel } from "@/components/dashboard/ChatPanel";
 import { RegionalMap } from "@/components/dashboard/RegionalMap";
 import { CHART_GRID_STROKE, semantic } from "@/lib/design-tokens";
 import { getTrackerCrops, getFaoFoodBalances, getGssCropProduction, getPriceSummary } from "@/lib/api";
@@ -44,6 +45,10 @@ export default function LandingPage() {
   const [foodBalance, setFoodBalance] = useState<{ year: number; supply: number; demand: number }[]>([]);
   const [nationalProd, setNationalProd] = useState<{ value: number; year: number | null }>({ value: 0, year: null });
   const [topMover, setTopMover] = useState<{ name: string; pct: number } | null>(null);
+  // Region selected on the map. Auto-opens the chat panel scoped to that
+  // region so users can drill into local context — same UX as /forecast.
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     getTrackerCrops().then(setCrops);
@@ -153,6 +158,7 @@ export default function LandingPage() {
   }, []);
 
   return (
+    <>
     <div className="space-y-5 animate-fade-in">
       {/* Page header */}
       <div className="pb-4 border-b border-border">
@@ -201,7 +207,14 @@ export default function LandingPage() {
           </div>
           <Card className="overflow-hidden p-0 h-[700px]">
             <div className="h-full bg-muted/30">
-              <RegionalMap crop={crop} metric={layer} />
+              <RegionalMap
+                crop={crop}
+                metric={layer}
+                onRegionSelect={(region) => {
+                  setSelectedRegion(region);
+                  if (region) setChatOpen(true);
+                }}
+              />
             </div>
           </Card>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -227,10 +240,15 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Right rail: sticks below the header so it stays in view as the
-            page scrolls. self-start prevents the grid's items-stretch from
-            forcing it to fill the column height (which would break sticky). */}
-        <div className="flex flex-col gap-4 xl:sticky xl:top-20 xl:self-start xl:max-h-[calc(100vh-6rem)]">
+        {/* Right rail — sticky at top-20 so it stays in view as the page
+            scrolls. `self-start` keeps it at its natural height inside the
+            grid (otherwise items-stretch fills the column and breaks
+            sticky). No max-height/overflow — clamping the rail to viewport
+            height clips long content (timeline + chart total >~800px on
+            standard laptops); letting it run natural means anything past
+            the fold is reachable by scrolling the page once. Same approach
+            as /forecast's sticky rail. */}
+        <div className="flex flex-col gap-4 xl:sticky xl:top-20 xl:self-start">
           <Card className="p-5 min-h-[420px]">
             <h3 className="text-sm font-semibold text-foreground mb-4">Outlook Timeline</h3>
 
@@ -311,6 +329,18 @@ export default function LandingPage() {
         </div>
       </div>
     </div>
+
+    {/* Rendered OUTSIDE the animated wrapper. `animate-fade-in`'s keyframe
+        leaves a `transform` value applied, which establishes a containing
+        block and pins fixed-positioned descendants inside the page rather
+        than the viewport. Same fix used on /forecast and /. */}
+    <ChatPanel
+      open={chatOpen}
+      crop={crop}
+      region={selectedRegion}
+      onClose={() => setChatOpen(false)}
+    />
+    </>
   );
 }
 

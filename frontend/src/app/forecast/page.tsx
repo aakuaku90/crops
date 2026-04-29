@@ -117,6 +117,10 @@ export default function ForecastOutlookPage() {
   // conversation to {crop, region} so the user can drill into local context.
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  // One-shot prompt to auto-send when the panel opens — set by buttons that
+  // launch a specific question (e.g. "fetch current prices via web search").
+  // ChatPanel dedupes by string, so we don't have to clear this back to null.
+  const [chatPrompt, setChatPrompt] = useState<string | null>(null);
 
   // Fetch the tracker crop list once. The dropdown shows every crop, but only
   // "Maize" is currently selectable — others are flagged as "Soon" and
@@ -889,6 +893,19 @@ export default function ForecastOutlookPage() {
                   ? `Avg ${formatTonnes(priceSummary.avg_pred_horizon_ghs)} GH₵/100KG by ${priceSummary.horizon_date?.slice(0, 7)} across ${priceSummary.n_markets} markets`
                   : "Run the price-forecast sync to populate"
               }
+              action={
+                <button
+                  onClick={() => {
+                    setChatPrompt(
+                      `What is the current retail price of ${CROP.toLowerCase()} per 100KG (or per kg) in Ghana? Search the web for the latest prices across major markets like Accra, Kumasi, Tamale, and Takoradi. Cite sources and dates.`,
+                    );
+                    setChatOpen(true);
+                  }}
+                  className="inline-flex items-center rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
+                >
+                  Get current price (AI + web)
+                </button>
+              }
               last
             />
           </Card>
@@ -977,6 +994,7 @@ export default function ForecastOutlookPage() {
       open={chatOpen}
       crop={CROP}
       region={selectedRegion}
+      initialPrompt={chatPrompt}
       onClose={() => setChatOpen(false)}
     />
     </>
@@ -1018,12 +1036,16 @@ function TimelineItem({
   status,
   title,
   detail,
+  action,
   last = false,
 }: {
   label: string;
   status: string;
   title: string;
   detail: string;
+  /** Optional secondary action rendered under the detail text (e.g. a button
+   *  that opens the chat panel with a pre-filled question). */
+  action?: React.ReactNode;
   last?: boolean;
 }) {
   return (
@@ -1038,7 +1060,10 @@ function TimelineItem({
           <span className="text-[10px] font-medium text-muted-foreground">{status}</span>
         </div>
         <div className="text-sm font-medium text-foreground mt-0.5">{title}</div>
-        <div className="text-[11px] text-muted-foreground mt-0.5">{detail}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">
+          {detail}
+          {action && <span className="ml-1.5 align-middle">{action}</span>}
+        </div>
       </div>
     </div>
   );

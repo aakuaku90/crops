@@ -23,7 +23,7 @@ export default function RootLayout({
         <div className="min-h-screen bg-background text-foreground">
           <StickyHeader />
           <AppShell>{children}</AppShell>
-          <footer className="border-t border-border mt-16 h-[66px] px-6 lg:pl-56 flex items-center">
+          <footer className="border-t border-border mt-16 h-[66px] px-6 lg:pl-64 flex items-center">
             <div className="max-w-[1600px] mx-auto text-center text-xs text-muted-foreground w-full">
               Data source: HDEX (WFP Food Prices) &amp; FAO FAOSTAT API &bull; Country: Ghana (GHA)
             </div>

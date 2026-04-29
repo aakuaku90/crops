@@ -740,12 +740,36 @@ export interface ChatMessage {
  * `onText` fires for each incremental text delta. Returns when the stream
  * ends or throws on error.
  */
+export interface ChatToolEvent {
+  type: "tool_call" | "tool_result";
+  name: string;
+  count?: number;
+}
+
+export interface ChatRetryEvent {
+  type: "retry";
+  after_seconds: number;
+  /** "overloaded" | "rate_limit" | "connection" */
+  reason: string;
+}
+
 export async function streamChat(
   crop: string,
   messages: ChatMessage[],
   onText: (text: string) => void,
   signal?: AbortSignal,
-  options?: { webSearch?: boolean; region?: string | null },
+  options?: {
+    webSearch?: boolean;
+    region?: string | null;
+    /** Fired when the assistant invokes a tool or receives a result. Lets
+     *  the UI show transient labels like "Looking up app data…" so the user
+     *  sees what the model is doing during a multi-turn agent loop. */
+    onTool?: (event: ChatToolEvent) => void;
+    /** Fired when the backend is retrying after a transient Anthropic
+     *  error (overloaded / rate-limited / connection). The UI can use this
+     *  to show "Retrying in 8s…" without raising a hard error. */
+    onRetry?: (event: ChatRetryEvent) => void;
+  },
 ): Promise<void> {
   const res = await fetch(`${API_BASE}/api/v1/chat`, {
     method: "POST",
@@ -782,6 +806,20 @@ export async function streamChat(
       try {
         const payload = JSON.parse(line.slice(6));
         if (payload.type === "text") onText(payload.text);
+        if (payload.type === "tool_call" || payload.type === "tool_result") {
+          options?.onTool?.({
+            type: payload.type,
+            name: payload.name,
+            count: payload.count,
+          });
+        }
+        if (payload.type === "retry") {
+          options?.onRetry?.({
+            type: "retry",
+            after_seconds: payload.after_seconds,
+            reason: payload.reason,
+          });
+        }
         if (payload.type === "error") throw new Error(payload.error);
       } catch (e) {
         if (e instanceof SyntaxError) continue;

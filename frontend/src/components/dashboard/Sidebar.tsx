@@ -77,27 +77,33 @@ export function Sidebar() {
     pathname.startsWith("/forecast");
 
   return (
-    <aside className="hidden lg:flex flex-col fixed top-0 left-0 z-40 h-screen w-56 border-r border-border bg-card/40">
+    <aside className="hidden lg:flex flex-col fixed top-0 left-0 z-40 h-screen w-64 border-r border-border bg-card/40">
       <div className="flex flex-col h-full px-4 pt-4 bg-card/40 backdrop-blur">
         <Link
           href="/"
-          className="flex items-center gap-1 text-2xl font-bold tracking-tight text-foreground hover:opacity-70 transition-opacity leading-none px-2 mb-6"
+          className="flex items-center gap-1 text-2xl font-bold tracking-tight text-foreground hover:opacity-70 transition-opacity leading-none px-2 mb-5"
         >
           <LogoMark className="w-7 h-7 text-foreground" />
           <span className="leading-none">CROPS</span>
         </Link>
 
-        <div className="flex-1 min-h-0">
+        {/* `overflow-y-auto` so the nav scrolls inside the sidebar on short
+            viewports instead of pushing SystemStatus off the bottom. The
+            scrollbar-thin utility (tailwindcss-animate ships it) keeps the
+            track unobtrusive when it does appear. -mx-4 + px-4 lets the
+            scrollbar sit flush with the sidebar edge. pb-4 adds breathing
+            room so the last nav item doesn't kiss the SystemStatus border. */}
+        <div className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4 pb-4 [scrollbar-width:thin]">
           {isLanding ? (
             <nav>
-              <ul className="space-y-0.5">
+              <ul className="space-y-1">
                 {LANDING_ITEMS.map((item) => {
                   const isActive = pathname === item.href;
                   return (
                     <li key={item.href}>
                       <Link
                         href={item.href}
-                        className={`block rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                        className={`block rounded-lg px-3 py-2 text-base font-medium transition-colors ${
                           isActive
                             ? "bg-foreground text-background"
                             : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
@@ -111,20 +117,20 @@ export function Sidebar() {
               </ul>
             </nav>
           ) : (
-            <nav className="space-y-6">
+            <nav className="space-y-5">
               {DATA_SECTIONS.map((section) => (
                 <div key={section.title}>
-                  <div className="px-2 mb-2 text-base font-bold uppercase tracking-wider text-foreground">
+                  <div className="px-3 mb-1 text-lg font-bold uppercase tracking-wider text-foreground">
                     {section.title}
                   </div>
-                  <ul className="space-y-0.5">
+                  <ul className="space-y-1">
                     {section.items.map((item) => {
                       const isActive = pathname === item.href;
                       return (
                         <li key={item.href}>
                           <Link
                             href={item.href}
-                            className={`block rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                            className={`block rounded-lg px-3 py-2 text-base font-medium transition-colors ${
                               isActive
                                 ? "bg-foreground text-background"
                                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
